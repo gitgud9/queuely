@@ -6,7 +6,7 @@ Visitors scan a booth's QR code, join the queue on their phone, and watch their 
 
 Built as a portfolio project inspired by the queue systems used at large public events with gaming and VR booths.
 
-| Visitor's phone | Staff dashboard |
+| Visitor's phone | Staff Portal |
 | --- | --- |
 | <img src="docs/visitor.png" width="300"> | <img src="docs/staff.png" width="560"> |
 
@@ -22,7 +22,8 @@ Built as a portfolio project inspired by the queue systems used at large public 
 - **Live updates everywhere.** Visitor, staff and display screens update within a fraction of a second when anything changes.
 - **Wait estimates that learn.** The estimate starts from the booth's expected time per visitor, then adjusts to how long visitors actually take.
 - **Multi-station booths.** A booth with 2 headsets serves 2 people at once, and the estimate accounts for that.
-- **Staff tools.** Call next, Done, No-show (and "turned up late, serve now"), pause new joins, reset. Protected by a staff PIN.
+- **Separate guest and staff areas.** Guests only ever see Join queue, the public screen and QR codes. Staff use one **Staff Portal** behind a PIN, with a tab per booth.
+- **Staff tools.** Call next, Done, No-show (and "turned up late, serve now"), pause new joins, reset.
 - **Built for real phones.** The ticket survives a page reload, the phone vibrates and the tab title changes when you're called, and the page re-syncs when you unlock your phone.
 
 ## Pages
@@ -31,7 +32,7 @@ Built as a portfolio project inspired by the queue systems used at large public 
 | --- | --- |
 | `/` | Guest home: every booth with live waiting count, QR code, Join and Public screen links |
 | `/b/[booth]` | Visitor: join, see your number, place and wait, leave |
-| `/staff` | Staff Portal: PIN first, then one dashboard with a tab per booth (`/staff?booth=vr`) |
+| `/staff` | Staff Portal: PIN first, then one dashboard with a tab per booth (`/staff?booth=vr`). Old `/staff/<booth>` links redirect here |
 | `/display/[booth]` | Big screen next to the booth: now serving, up next, QR to join |
 
 ## Architecture
@@ -99,7 +100,7 @@ npm run dev          # http://localhost:3000, in-memory mode, staff PIN 1234
 npm test             # unit tests: queue rules, wait estimates, tokens, store
 npm run test:e2e     # browser tests (Playwright), builds and starts the app
 ```
-The end-to-end tests open **separate browser contexts as separate phones**. Three visitors join, staff call and skip, one visitor leaves, and staff pause and resume. The tests check that every visitor's screen, the staff dashboard and the public display update live without reloading. They also cover a two-station booth, a rush of 40 simultaneous joins, and the PIN and ticket-token security.
+The end-to-end tests open **separate browser contexts as separate phones**. Three visitors join, staff call and skip, one visitor leaves, and staff pause and resume. The tests check that every visitor's screen, the staff dashboard and the public display update live without reloading. They also cover a two-station booth, a rush of 40 simultaneous joins, the PIN and ticket-token security, and that guests see no staff links while the Staff Portal stays locked until the right PIN is entered.
 
 ### Deploying (Vercel + Supabase, both free)
 1. Create a Supabase project. In **SQL editor**, run [`supabase/schema.sql`](supabase/schema.sql).

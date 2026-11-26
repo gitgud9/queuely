@@ -62,19 +62,19 @@ All the rules live in [`src/lib/queue.ts`](src/lib/queue.ts) as functions shaped
 - **The same code runs on the server and in the browser.** The visitor's phone computes its own position and wait from the same functions the server uses, so they can never disagree.
 
 ### 2. One document per booth, saved with optimistic concurrency
-Each booth's whole queue is a single JSON document (`booths.state`) with a `version` number. A write looks like this:
+Each booth's whole queue is a single JSON document (`booths.state`). Inside it, `state.version` counts every change to that booth. A write looks like this:
 ```
-read state + version  →  newState = applyAction(state)  →
-UPDATE booths SET state = newState, version = version + 1 WHERE id = ? AND version = <version I read>
+read state (version N)  →  newState = applyAction(state), version N + 1  →
+UPDATE booths SET state = newState WHERE id = ? AND state->>'version' = 'N'
 ```
 If two staff members press "Call next" at the same moment, or 40 people join in the same second, only one write matches the version. The others re-read and retry. **No ticket number is ever handed out twice**, and an end-to-end test checks this with 40 joins at once.
 
 I picked this over a `tickets` table with row locks or SQL functions because it keeps every rule in TypeScript, in one place, under test. The trade-off is that very busy booths get more retries. That's fine at booth scale (tens of joins a minute). For thousands per second, I'd move to a SQL function or a queue service. Finished tickets are trimmed to the last 30 so the document stays small.
 
-`version` is just a change counter: it goes up by 1 every time anything happens at that booth (someone joins, leaves, is called, and so on). It isn't a guest count. For people reading the table in Supabase, Postgres also keeps four **generated columns** worked out from the JSON on every write: `waiting_guests`, `done_guests`, `no_show_guests` and `total_guests` (all tickets handed out since the last reset). Generated columns can't drift out of sync with the real state, because nobody writes them by hand.
+The counter lives inside the JSON rather than in its own column, so the table only shows things people care about. For people reading the table in Supabase, Postgres keeps four **generated columns** worked out from the JSON on every write: `waiting_guests`, `done_guests`, `no_show_guests` and `total_guests` (all tickets handed out since the last reset). Generated columns can't drift out of sync with the real state, because nobody writes them by hand.
 
 ### 3. Push the state, don't poll for it
-Every change produces a new state row, and Supabase Realtime pushes that row to every subscribed screen. Screens don't need a second request, so updates show up almost instantly. As a safety net, each screen also refetches every 20 seconds and whenever the tab becomes visible again, because phones often drop WebSocket connections when the screen locks. Each screen only accepts a state with a **higher `version`** than the one it has, so a slow response can't overwrite a newer update.
+Every change produces a new state row, and Supabase Realtime pushes that row to every subscribed screen. Screens don't need a second request, so updates show up almost instantly. As a safety net, each screen also refetches every 20 seconds and whenever the tab becomes visible again, because phones often drop WebSocket connections when the screen locks. Each screen only accepts a state with a **higher `state.version`** than the one it has, so a slow response can't overwrite a newer update.
 
 ### 4. Wait-time estimate
 ```

@@ -6,6 +6,15 @@ create table if not exists public.booths (
   updated_at timestamptz not null default now()
 );
 
+-- Easy-to-read counts per booth, computed by Postgres from `state` on every
+-- write so they can never drift out of sync. They reset when staff reset a queue.
+alter table public.booths
+  add column if not exists waiting_guests integer generated always as
+    (jsonb_array_length(jsonb_path_query_array(state, '$.tickets[*] ? (@.status == "waiting")'))) stored,
+  add column if not exists done_guests integer generated always as ((state->>'servedCount')::int) stored,
+  add column if not exists no_show_guests integer generated always as ((state->>'skippedCount')::int) stored,
+  add column if not exists total_guests integer generated always as ((state->>'nextNumber')::int - 1) stored;
+
 -- Anyone may read queue state (it holds only ticket numbers and times, no
 -- personal data). Only the server, using the service role key, can write.
 alter table public.booths enable row level security;

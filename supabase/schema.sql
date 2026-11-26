@@ -2,9 +2,11 @@
 create table if not exists public.booths (
   id text primary key,
   state jsonb not null,
-  version integer not null default 0,
   updated_at timestamptz not null default now()
 );
+
+-- Older setups had a separate version column; the change counter now lives in state.version.
+alter table public.booths drop column if exists version;
 
 -- Easy-to-read counts per booth, computed by Postgres from `state` on every
 -- write so they can never drift out of sync. They reset when staff reset a queue.

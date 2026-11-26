@@ -7,8 +7,9 @@ import type { QueueStore } from "./types";
 const MAX_RETRIES = 8;
 
 /**
- * Postgres-backed store. Each booth is one row: { id, state jsonb, version }.
- * Writes use optimistic concurrency: "UPDATE ... WHERE version = <what I read>".
+ * Postgres-backed store. Each booth is one row: { id, state jsonb }.
+ * `state.version` is a change counter kept inside the JSON. Writes use
+ * optimistic concurrency: "UPDATE ... WHERE state->>'version' = <what I read>".
  * If two staff phones press "Call next" at the same moment, one write wins and
  * the other re-reads and retries, so no ticket number is ever handed out twice.
  *
@@ -25,7 +26,7 @@ export class SupabaseStore implements QueueStore {
 
   private seed() {
     this.seeded ??= (async () => {
-      const rows = DEFAULT_BOOTHS.map((b) => ({ id: b.id, state: createBooth(b), version: 0 }));
+      const rows = DEFAULT_BOOTHS.map((b) => ({ id: b.id, state: createBooth(b) }));
       const { error } = await this.db.from("booths").upsert(rows, { onConflict: "id", ignoreDuplicates: true });
       if (error) {
         this.seeded = null;
@@ -37,16 +38,16 @@ export class SupabaseStore implements QueueStore {
 
   async list() {
     await this.seed();
-    const { data, error } = await this.db.from("booths").select("state, version").order("id");
+    const { data, error } = await this.db.from("booths").select("state").order("id");
     if (error) throw new Error(error.message);
-    return data.map((r) => ({ ...(r.state as BoothState), version: r.version }));
+    return data.map((r) => r.state as BoothState);
   }
 
   async get(id: string) {
     await this.seed();
-    const { data, error } = await this.db.from("booths").select("state, version").eq("id", id).maybeSingle();
+    const { data, error } = await this.db.from("booths").select("state").eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? { ...(data.state as BoothState), version: data.version } : null;
+    return data ? (data.state as BoothState) : null;
   }
 
   async update<R>(id: string, fn: (s: BoothState) => { state: BoothState; result: R }) {
@@ -57,9 +58,9 @@ export class SupabaseStore implements QueueStore {
       const saved = { ...state, version: current.version + 1 };
       const { data, error } = await this.db
         .from("booths")
-        .update({ state: saved, version: saved.version, updated_at: new Date().toISOString() })
+        .update({ state: saved, updated_at: new Date().toISOString() })
         .eq("id", id)
-        .eq("version", current.version)
+        .eq("state->>version", String(current.version))
         .select("id");
       if (error) throw new Error(error.message);
       if (data.length === 1) return { state: saved, result };

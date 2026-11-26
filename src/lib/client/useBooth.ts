@@ -57,8 +57,7 @@ export function useBooth(id: string) {
       const channel = sb
         .channel(`booth:${id}`)
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "booths", filter: `id=eq.${id}` }, (payload) => {
-          const row = payload.new as { state: BoothState; version: number };
-          accept({ ...row.state, version: row.version });
+          accept((payload.new as { state: BoothState }).state);
         })
         .subscribe((status) => {
           setLive(status === "SUBSCRIBED");

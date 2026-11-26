@@ -66,8 +66,9 @@ export async function runGemini(
   return { reply: "Sorry, that took too long to work out. Please try asking in a simpler way.", toolsUsed, source: "gemini" };
 }
 
-/** Errors that mean "this model won't work for us, try another one". */
-export const isModelUnavailable = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.status === 429 || e.status === 403);
+/** Errors that mean "this model won't work for us right now, try another one": gone (404), no free quota (403/429), or overloaded (500/503). */
+export const isModelUnavailable = (e: unknown) =>
+  e instanceof ApiError && [403, 404, 429, 500, 503].includes(e.status);
 
 let workingModel: string | null = null;
 

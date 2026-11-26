@@ -110,7 +110,7 @@ The end-to-end tests open **separate browser contexts as separate phones**. Thre
    | `SUPABASE_SERVICE_ROLE_KEY` | the `service_role` key (server only, never exposed) |
    | `TICKET_SECRET` | any long random string |
    | `STAFF_PIN` | the PIN staff will use (leave unset to keep the demo PIN 1234) |
-   | `NEXT_PUBLIC_REPO_URL` | link to this repo (optional) |
+   | `NEXT_PUBLIC_REPO_URL` | link to the repo (optional, defaults to github.com/gitgud9/queuely) |
 3. Deploy. The booths (VR, Gaming, Photo) are created automatically on first load. Edit `src/lib/booths.ts` to change them.
 
 ## What I'd add next

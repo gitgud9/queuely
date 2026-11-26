@@ -21,7 +21,7 @@ export default function Home() {
         </p>
         <div className="row">
           <Link className="btn primary" href="/demo/vr">Try the live demo</Link>
-          <a className="btn" href={process.env.NEXT_PUBLIC_REPO_URL || "https://github.com"} target="_blank" rel="noreferrer">How it&apos;s built</a>
+          <a className="btn" href={process.env.NEXT_PUBLIC_REPO_URL || "https://github.com/gitgud9/queuely"} target="_blank" rel="noreferrer">How it&apos;s built</a>
         </div>
       </header>
 

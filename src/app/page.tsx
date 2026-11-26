@@ -1,95 +1,59 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import Link from "next/link";
+import { QrCode } from "@/components/QrCode";
+import { useBoothList } from "@/lib/client/useBooth";
+import { formatWait } from "@/lib/format";
+import { called, estimateWaitSec, label, waiting } from "@/lib/queue";
 
 export default function Home() {
+  const booths = useBoothList();
+  const now = Date.now();
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+    <main className="container stack" style={{ gap: 24 }}>
+      <header className="stack" style={{ gap: 8 }}>
+        <span className="pill" style={{ alignSelf: "flex-start" }}>Queuely</span>
+        <h1 style={{ fontSize: "clamp(2rem, 5vw, 3rem)" }}>Skip the line, not the fun.</h1>
+        <p className="muted" style={{ margin: 0, maxWidth: 640 }}>
+          Scan a booth&apos;s QR code to join its queue. Your number, place in line and estimated wait update live on your
+          phone, and it buzzes when it&apos;s your turn. Staff call the next visitor from a dashboard, and a big screen at the
+          booth shows who&apos;s being served.
+        </p>
+        <div className="row">
+          <Link className="btn primary" href="/demo/vr">Try the live demo</Link>
+          <a className="btn" href={process.env.NEXT_PUBLIC_REPO_URL || "https://github.com"} target="_blank" rel="noreferrer">How it&apos;s built</a>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </header>
+
+      <section className="grid">
+        {!booths && <p className="muted">Loading booths…</p>}
+        {booths?.map((b) => {
+          const line = waiting(b);
+          const serving = called(b);
+          return (
+            <article key={b.id} className="card stack" data-testid={`booth-${b.id}`}>
+              <div className="row spread">
+                <h2 style={{ fontSize: "1.25rem" }}>{b.name}</h2>
+                {b.paused ? <span className="pill paused">Paused</span> : <span className="pill live">Open</span>}
+              </div>
+              <p className="muted small" style={{ margin: 0 }}>{b.description}</p>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <div className="stat"><span className="value">{line.length}</span><span className="label">Waiting</span></div>
+                <div className="stat"><span className="value">{formatWait(estimateWaitSec(b, line.length + 1, now))}</span><span className="label">Wait</span></div>
+                <div className="stat"><span className="value mono" style={{ fontSize: "1.1rem" }}>{serving[0] ? label(b, serving[0].number) : "—"}</span><span className="label">Serving</span></div>
+              </div>
+              <div className="row" style={{ alignItems: "flex-start" }}>
+                <QrCode path={`/b/${b.id}`} size={120} />
+                <div className="stack" style={{ flex: 1, gap: 8 }}>
+                  <Link className="btn primary sm" href={`/b/${b.id}`}>Join queue</Link>
+                  <Link className="btn sm" href={`/staff/${b.id}`}>Staff dashboard</Link>
+                  <Link className="btn sm" href={`/display/${b.id}`}>Public screen</Link>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+    </main>
   );
 }

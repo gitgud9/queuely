@@ -44,7 +44,7 @@ describe("runGemini (Gemini tool-use loop)", () => {
     const r = await runGemini([{ role: "user", content: "shortest?" }], { generate: g.generate, store, now: () => NOW });
 
     expect(r).toEqual({ reply: "Photo Booth, any moment now.", toolsUsed: ["get_live_queues"], source: "gemini" });
-    expect(g.calls[0].model).toBe("gemini-flash-latest");
+    expect(g.calls[0].model).toBe("gemini-4-hydrogen");
     const contents = g.calls[1].contents as { role: string; parts: { functionResponse?: { id: string; name: string; response: { output: { booths: { id: string; waiting: number }[] } } } }[] }[];
     expect(contents.map((c) => c.role)).toEqual(["user", "model", "user"]);
     const fr = contents[2].parts[0].functionResponse!;
@@ -153,5 +153,36 @@ describe("RateLimiter", () => {
     expect(rl.take("a", 2000)).toBe(58_000);
     expect(rl.take("b", 2000)).toBe(0);
     expect(rl.take("a", 60_000)).toBe(0);
+  });
+});
+
+describe("runGeminiWithFallback", () => {
+  it("skips models that are gone or out of free quota, then remembers the one that works", async () => {
+    const { ApiError } = await import("@google/genai");
+    const { runGeminiWithFallback, resetWorkingModel, GEMINI_MODELS } = await import("@/lib/assistant/gemini");
+    resetWorkingModel();
+    const tried: string[] = [];
+    const generate: GenerateContent = async (p) => {
+      tried.push(p.model);
+      if (p.model === "old-model") throw new ApiError({ message: "not found", status: 404 });
+      if (p.model === GEMINI_MODELS[0]) throw new ApiError({ message: "quota", status: 429 });
+      return gem({ text: `hi from ${p.model}` });
+    };
+    const q = [{ role: "user" as const, content: "hi" }];
+    const r = await runGeminiWithFallback(q, { generate, store: new MemoryStore(), preferred: "old-model" });
+    expect(r.reply).toBe(`hi from ${GEMINI_MODELS[1]}`);
+    expect(tried).toEqual(["old-model", GEMINI_MODELS[0], GEMINI_MODELS[1]]);
+
+    tried.length = 0;
+    await runGeminiWithFallback(q, { generate, store: new MemoryStore() });
+    expect(tried).toEqual([GEMINI_MODELS[1]]);
+  });
+
+  it("does not hide real errors", async () => {
+    const { runGeminiWithFallback } = await import("@/lib/assistant/gemini");
+    const generate: GenerateContent = async () => {
+      throw new Error("network down");
+    };
+    await expect(runGeminiWithFallback([{ role: "user", content: "hi" }], { generate, store: new MemoryStore() })).rejects.toThrow("network down");
   });
 });

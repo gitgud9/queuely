@@ -1,10 +1,15 @@
-import type { Content, GenerateContentParameters, GenerateContentResponse, Part } from "@google/genai";
+import { ApiError, type Content, type GenerateContentParameters, type GenerateContentResponse, type Part } from "@google/genai";
 import type { QueueStore } from "../store/types";
 import { MAX_TOOL_ROUNDS, SYSTEM_PROMPT, type AssistantResult, type ChatTurn } from "./common";
 import { TOOL_SPECS, runTool } from "./tools";
 
-/** "Latest Flash" alias: free tier in Google AI Studio, and it doesn't break when Google retires a version. */
-export const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+/**
+ * Free-tier models to try, best first. Google renames and retires models
+ * often, so if one is gone (404) or out of free quota (429) we move on to the
+ * next instead of failing. GEMINI_MODEL, if set, is tried first.
+ */
+export const GEMINI_MODELS = ["gemini-4-hydrogen", "gemini-3.6-flash", "gemini-3.5-flash-lite"];
+export const DEFAULT_GEMINI_MODEL = GEMINI_MODELS[0];
 
 /** The one SDK call we use, so tests can pass a fake instead of the real client. */
 export type GenerateContent = (params: GenerateContentParameters) => Promise<GenerateContentResponse>;
@@ -60,3 +65,38 @@ export async function runGemini(
 
   return { reply: "Sorry, that took too long to work out. Please try asking in a simpler way.", toolsUsed, source: "gemini" };
 }
+
+/** Errors that mean "this model won't work for us, try another one". */
+export const isModelUnavailable = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.status === 429 || e.status === 403);
+
+let workingModel: string | null = null;
+
+/**
+ * Run the loop on the first model that works, and remember it so later
+ * questions go straight there. Throws the last error if none work.
+ */
+export async function runGeminiWithFallback(
+  history: ChatTurn[],
+  deps: { generate: GenerateContent; store: QueueStore; now?: () => number; preferred?: string },
+): Promise<AssistantResult> {
+  const chain = [...new Set([deps.preferred, workingModel, ...GEMINI_MODELS].filter((m): m is string => !!m))];
+  let lastError: unknown;
+  for (const model of chain) {
+    try {
+      const result = await runGemini(history, { ...deps, model });
+      workingModel = model;
+      return result;
+    } catch (e) {
+      if (!isModelUnavailable(e)) throw e;
+      console.warn(`Gemini model ${model} unavailable (${(e as ApiError).status}), trying the next one`);
+      if (workingModel === model) workingModel = null;
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
+/** For tests. */
+export const resetWorkingModel = () => {
+  workingModel = null;
+};

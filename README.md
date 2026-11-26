@@ -107,9 +107,9 @@ The end-to-end tests open **separate browser contexts as separate phones**. Thre
 2. Import this repo in Vercel and set these environment variables:
    | Variable | Value |
    | --- | --- |
-   | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project settings → API → URL |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the `anon` public key |
-   | `SUPABASE_SERVICE_ROLE_KEY` | the `service_role` key (server only, never exposed) |
+   | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project settings → Data API → Project URL |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable key (`sb_publishable_…`, or the legacy `anon` key) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | the secret key (`sb_secret_…`, or the legacy `service_role` key). Server only, never exposed |
    | `TICKET_SECRET` | any long random string |
    | `STAFF_PIN` | the PIN staff will use (leave unset to keep the demo PIN 1234) |
    | `NEXT_PUBLIC_REPO_URL` | link to the repo (optional, defaults to github.com/gitgud9/queuely) |

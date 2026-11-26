@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { QrCode } from "@/components/QrCode";
+import { DEFAULT_BOOTHS } from "@/lib/booths";
 import { useBoothList } from "@/lib/client/useBooth";
 import { formatWait } from "@/lib/format";
 import { called, estimateWaitSec, label, waiting } from "@/lib/queue";
+
+const order = DEFAULT_BOOTHS.map((b) => b.id);
+const byDefaultOrder = (a: { id: string }, b: { id: string }) => order.indexOf(a.id) - order.indexOf(b.id);
 
 export default function Home() {
   const booths = useBoothList();
@@ -20,14 +24,14 @@ export default function Home() {
           booth shows who&apos;s being served.
         </p>
         <div className="row">
-          <Link className="btn primary" href="/demo/vr">Try the live demo</Link>
+          <Link className="btn primary" href="/staff" data-testid="staff-portal">Staff Portal</Link>
           <a className="btn" href={process.env.NEXT_PUBLIC_REPO_URL || "https://github.com/gitgud9/queuely"} target="_blank" rel="noreferrer">How it&apos;s built</a>
         </div>
       </header>
 
       <section className="grid">
         {!booths && <p className="muted">Loading booths…</p>}
-        {booths?.map((b) => {
+        {booths?.sort(byDefaultOrder).map((b) => {
           const line = waiting(b);
           const serving = called(b);
           return (
@@ -46,7 +50,6 @@ export default function Home() {
                 <QrCode path={`/b/${b.id}`} size={120} />
                 <div className="stack" style={{ flex: 1, gap: 8 }}>
                   <Link className="btn primary sm" href={`/b/${b.id}`}>Join queue</Link>
-                  <Link className="btn sm" href={`/staff/${b.id}`}>Staff dashboard</Link>
                   <Link className="btn sm" href={`/display/${b.id}`}>Public screen</Link>
                 </div>
               </div>

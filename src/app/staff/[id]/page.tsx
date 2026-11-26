@@ -1,6 +1,0 @@
-import { Staff } from "./Staff";
-
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <Staff id={id} demoPin={process.env.STAFF_PIN ? null : "1234"} />;
-}

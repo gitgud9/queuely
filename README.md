@@ -14,7 +14,7 @@ Built as a portfolio project inspired by the queue systems used at large public 
 
 <img src="docs/display.png" width="720">
 
-**Try it:** open `/demo/vr` to see the visitor phone, staff dashboard and public screen side by side. In demo mode the staff PIN is `1234`, and the dashboard has an "Add 5 test visitors" button.
+**Try it:** visitors start on the home page (Join queue, Public screen, QR codes). Staff click **Staff Portal** and enter the PIN (`1234` unless `STAFF_PIN` is set). In demo mode the dashboard also has an "Add 5 test visitors" button.
 
 ## Features
 
@@ -29,11 +29,10 @@ Built as a portfolio project inspired by the queue systems used at large public 
 
 | Path | Who it's for |
 | --- | --- |
-| `/` | All booths with live waiting counts, QR codes and links |
+| `/` | Guest home: every booth with live waiting count, QR code, Join and Public screen links |
 | `/b/[booth]` | Visitor: join, see your number, place and wait, leave |
-| `/staff/[booth]` | Staff dashboard (PIN protected) |
+| `/staff` | Staff Portal: PIN first, then one dashboard with a tab per booth (`/staff?booth=vr`) |
 | `/display/[booth]` | Big screen next to the booth: now serving, up next, QR to join |
-| `/demo/[booth]` | All three views side by side for demos |
 
 ## Architecture
 
@@ -127,7 +126,7 @@ src/lib/queue.ts          pure queue rules + wait estimate
 src/lib/store/            memory and Supabase stores behind one interface
 src/lib/token.ts          ticket tokens and staff PIN check
 src/lib/client/useBooth.ts live state hook (Realtime or SSE, plus fallbacks)
-src/app/b, staff, display, demo   the pages
+src/app/b, staff, display   the pages
 src/app/api/              HTTP actions
 tests/unit, tests/e2e     Vitest and Playwright
 ```

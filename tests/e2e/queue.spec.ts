@@ -27,10 +27,11 @@ async function joinQueue(page: Page) {
 
 async function openStaff(browser: Browser, booth: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
-  await page.goto(`/staff/${booth}`);
+  await page.goto(`/staff?booth=${booth}`);
   await page.getByTestId("pin").fill(PIN);
   await page.getByTestId("pin-submit").click();
   await expect(page.getByTestId("staff")).toBeVisible();
+  await expect(page.getByTestId(`tab-${booth}`)).toHaveAttribute("aria-current", "page");
   return page;
 }
 
@@ -136,4 +137,37 @@ test("staff actions need the PIN, and tickets can't be cancelled by strangers", 
     body: JSON.stringify({ number: joined.number, joinedAt: joined.joinedAt, token: "guessed-token-123456789" }),
   });
   expect(forged.status).toBe(403);
+});
+
+test("guests only see Join, the public screen and QR codes; staff use the PIN-protected portal", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("booth-vr")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Join queue" })).toHaveCount(3);
+  await expect(page.getByRole("link", { name: "Public screen" })).toHaveCount(3);
+  await expect(page.getByRole("link", { name: /staff dashboard/i })).toHaveCount(0);
+
+  // The Staff Portal asks for the PIN before showing anything.
+  await page.getByTestId("staff-portal").click();
+  await expect(page).toHaveURL(/\/staff$/);
+  await expect(page.getByTestId("staff")).toHaveCount(0);
+  await page.getByTestId("pin").fill("0000");
+  await page.getByTestId("pin-submit").click();
+  await expect(page.getByText("Wrong PIN")).toBeVisible();
+  await page.getByTestId("pin").fill(PIN);
+  await page.getByTestId("pin-submit").click();
+
+  // Staff dashboard only: booth tabs, no Join buttons or QR codes.
+  await expect(page.getByTestId("staff")).toContainText("VR Experience");
+  await expect(page.getByTestId("join")).toHaveCount(0);
+  await expect(page.locator(".qr")).toHaveCount(0);
+  await page.getByTestId("tab-gaming").click();
+  await expect(page.getByTestId("staff")).toContainText("Gaming Arena");
+  await expect(page).toHaveURL(/booth=gaming/);
+
+  // Old per-booth staff links land in the portal.
+  await page.goto("/staff/photo");
+  await expect(page.getByTestId("staff")).toContainText("Photo Booth");
+
+  await page.getByTestId("sign-out").click();
+  await expect(page.getByTestId("pin")).toBeVisible();
 });

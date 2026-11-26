@@ -15,12 +15,39 @@ function mmss(ms: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export function Staff({ id, demoPin }: { id: string; demoPin: string | null }) {
+interface BoothTab {
+  id: string;
+  name: string;
+}
+
+/**
+ * The one staff entry point. Guests never see a link to anything in here:
+ * it asks for the staff PIN first, then shows the dashboard for one booth at
+ * a time, with tabs to switch booths.
+ */
+export function StaffPortal({ booths, demo }: { booths: BoothTab[]; demo: boolean }) {
   const [pin, setPin] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  useEffect(() => setPin(sessionStorage.getItem(PIN_KEY)), []);
+  const [id, setId] = useState(booths[0].id);
+
+  useEffect(() => {
+    setPin(sessionStorage.getItem(PIN_KEY));
+    const fromUrl = new URLSearchParams(window.location.search).get("booth");
+    if (fromUrl && booths.some((b) => b.id === fromUrl)) setId(fromUrl);
+  }, [booths]);
+
+  const selectBooth = (booth: string) => {
+    setId(booth);
+    window.history.replaceState(null, "", `/staff?booth=${booth}`);
+  };
+
+  const signOut = () => {
+    sessionStorage.removeItem(PIN_KEY);
+    setPin(null);
+    setInput("");
+  };
 
   async function login(e: React.FormEvent) {
     e.preventDefault();
@@ -38,18 +65,40 @@ export function Staff({ id, demoPin }: { id: string; demoPin: string | null }) {
   if (!pin) {
     return (
       <main className="container narrow stack">
-        <h1>Staff sign-in</h1>
+        <h1>Staff Portal</h1>
+        <p className="muted" style={{ margin: 0 }}>Enter the staff PIN to manage the booth queues.</p>
         <form className="card stack" onSubmit={login}>
           <label className="muted small" htmlFor="pin">Staff PIN</label>
           <input id="pin" className="pin" inputMode="numeric" autoFocus value={input} onChange={(e) => setInput(e.target.value)} data-testid="pin" />
           <button className="btn primary" type="submit" data-testid="pin-submit">Sign in</button>
           {loginError && <div className="banner bad">{loginError}</div>}
-          {demoPin && <p className="small muted" style={{ margin: 0 }}>Demo mode: the PIN is {demoPin}.</p>}
         </form>
+        <Link href="/" className="small center">Back to the visitor page</Link>
       </main>
     );
   }
-  return <Dashboard id={id} pin={pin} demo={!!demoPin} onSignOut={() => { sessionStorage.removeItem(PIN_KEY); setPin(null); }} />;
+  return (
+    <>
+      <header className="portal-bar">
+        <span style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--accent)" }}>Staff Portal</span>
+        <nav className="row" style={{ gap: 8 }} aria-label="Booths">
+          {booths.map((b) => (
+            <button
+              key={b.id}
+              className={`btn sm${b.id === id ? " primary" : ""}`}
+              onClick={() => selectBooth(b.id)}
+              aria-current={b.id === id ? "page" : undefined}
+              data-testid={`tab-${b.id}`}
+            >
+              {b.name}
+            </button>
+          ))}
+          <button className="btn sm" onClick={signOut} data-testid="sign-out">Sign out</button>
+        </nav>
+      </header>
+      <Dashboard key={id} id={id} pin={pin} demo={demo} onSignOut={signOut} />
+    </>
+  );
 }
 
 function Dashboard({ id, pin, demo, onSignOut }: { id: string; pin: string; demo: boolean; onSignOut: () => void }) {
@@ -111,7 +160,6 @@ function Dashboard({ id, pin, demo, onSignOut }: { id: string; pin: string; demo
         </div>
         <div className="row">
           <Link className="btn sm" href={`/display/${id}`} target="_blank">Open public screen</Link>
-          <button className="btn sm" onClick={onSignOut}>Sign out</button>
         </div>
       </div>
 

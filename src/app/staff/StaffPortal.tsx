@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LiveBadge } from "@/components/LiveBadge";
+import { EventEditor } from "./EventEditor";
 import { useBooth, useNow } from "@/lib/client/useBooth";
 import { formatWait } from "@/lib/format";
 import { called, estimateWaitSec, label, waiting } from "@/lib/queue";
 import type { StaffAction } from "@/lib/types";
 
 const PIN_KEY = "queuely:staff-pin";
+/** Tab id for the event info editor (booth ids are short slugs like "vr", so no clash). */
+const EVENT_TAB = "event";
 
 function mmss(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -34,13 +37,15 @@ export function StaffPortal({ booths, demo }: { booths: BoothTab[]; demo: boolea
 
   useEffect(() => {
     setPin(sessionStorage.getItem(PIN_KEY));
-    const fromUrl = new URLSearchParams(window.location.search).get("booth");
-    if (fromUrl && booths.some((b) => b.id === fromUrl)) setId(fromUrl);
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("booth");
+    if (params.get("tab") === EVENT_TAB) setId(EVENT_TAB);
+    else if (fromUrl && booths.some((b) => b.id === fromUrl)) setId(fromUrl);
   }, [booths]);
 
   const selectBooth = (booth: string) => {
     setId(booth);
-    window.history.replaceState(null, "", `/staff?booth=${booth}`);
+    window.history.replaceState(null, "", booth === EVENT_TAB ? `/staff?tab=${EVENT_TAB}` : `/staff?booth=${booth}`);
   };
 
   const signOut = () => {
@@ -93,10 +98,22 @@ export function StaffPortal({ booths, demo }: { booths: BoothTab[]; demo: boolea
               {b.name}
             </button>
           ))}
+          <button
+            className={`btn sm${id === EVENT_TAB ? " primary" : ""}`}
+            onClick={() => selectBooth(EVENT_TAB)}
+            aria-current={id === EVENT_TAB ? "page" : undefined}
+            data-testid="tab-event"
+          >
+            Event info
+          </button>
           <button className="btn sm" onClick={signOut} data-testid="sign-out">Sign out</button>
         </nav>
       </header>
-      <Dashboard key={id} id={id} pin={pin} demo={demo} onSignOut={signOut} />
+      {id === EVENT_TAB ? (
+        <EventEditor pin={pin} booths={booths} onSignOut={signOut} />
+      ) : (
+        <Dashboard key={id} id={id} pin={pin} demo={demo} onSignOut={signOut} />
+      )}
     </>
   );
 }

@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { formatWait } from "../format";
 import { called, estimateWaitSec, waiting } from "../queue";
 import type { QueueStore } from "../store/types";
-import { EVENT, eventClock, toMinutes } from "./eventInfo";
+import { EVENT, eventClock, toMinutes, type EventInfo } from "./eventInfo";
 
 /**
  * Tools the model can call. Each one is a plain async function over the same
@@ -61,7 +61,7 @@ export interface BoothStatus {
   estimatedWait: string;
 }
 
-export async function getLiveQueues(store: QueueStore, now: number, boothId?: string): Promise<{ booths: BoothStatus[] }> {
+export async function getLiveQueues(store: QueueStore, now: number, boothId?: string, event: EventInfo = EVENT): Promise<{ booths: BoothStatus[] }> {
   const all = await store.list();
   const booths = all
     .filter((b) => !boothId || b.id === boothId)
@@ -71,7 +71,7 @@ export async function getLiveQueues(store: QueueStore, now: number, boothId?: st
       return {
         id: b.id,
         name: b.name,
-        location: EVENT.places.find((p) => p.boothId === b.id)?.where ?? "Ask at the info counter",
+        location: event.places.find((p) => p.boothId === b.id)?.where ?? "Ask event staff",
         open: !b.paused,
         waiting: line,
         beingServed: called(b).length,
@@ -83,10 +83,10 @@ export async function getLiveQueues(store: QueueStore, now: number, boothId?: st
   return { booths };
 }
 
-export function getSchedule(now: number) {
-  const clock = eventClock(now);
+export function getSchedule(now: number, event: EventInfo = EVENT) {
+  const clock = eventClock(now, event.timeZone);
   const t = toMinutes(clock);
-  const sessions = EVENT.schedule.map((s) => ({
+  const sessions = event.schedule.map((s) => ({
     ...s,
     status: toMinutes(s.end) <= t ? "finished" : toMinutes(s.start) <= t ? "on now" : "upcoming",
   }));
@@ -100,13 +100,13 @@ export function getSchedule(now: number) {
 }
 
 /** Run one tool call. Returns JSON text for the tool_result block. */
-export async function runTool(name: string, input: unknown, ctx: { store: QueueStore; now: number }): Promise<string> {
+export async function runTool(name: string, input: unknown, ctx: { store: QueueStore; now: number; event?: EventInfo }): Promise<string> {
   const args = (input ?? {}) as { booth_id?: string };
   switch (name) {
     case "get_live_queues":
-      return JSON.stringify(await getLiveQueues(ctx.store, ctx.now, args.booth_id));
+      return JSON.stringify(await getLiveQueues(ctx.store, ctx.now, args.booth_id, ctx.event));
     case "get_schedule":
-      return JSON.stringify(getSchedule(ctx.now));
+      return JSON.stringify(getSchedule(ctx.now, ctx.event));
     default:
       throw new Error(`Unknown tool ${name}`);
   }

@@ -33,3 +33,17 @@ do $$ begin
   alter publication supabase_realtime add table public.booths;
 exception when duplicate_object then null;
 end $$;
+
+-- Event info for the AI assistant (places, programme, FAQ), edited by staff in
+-- the Staff Portal's "Event info" tab. One row holds the whole event as JSON.
+-- Until a row is saved, the app uses the sample event in src/lib/event/defaults.ts.
+create table if not exists public.event_info (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+-- Only the server (service role key) reads and writes it; visitors get it
+-- through the app's own API.
+alter table public.event_info enable row level security;
+grant select, insert, update, delete on public.event_info to service_role;

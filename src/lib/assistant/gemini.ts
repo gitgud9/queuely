@@ -1,6 +1,7 @@
 import { ApiError, type Content, type GenerateContentParameters, type GenerateContentResponse, type Part } from "@google/genai";
 import type { QueueStore } from "../store/types";
-import { MAX_TOOL_ROUNDS, SYSTEM_PROMPT, type AssistantResult, type ChatTurn } from "./common";
+import { MAX_TOOL_ROUNDS, systemPrompt, type AssistantResult, type ChatTurn } from "./common";
+import { EVENT, type EventInfo } from "./eventInfo";
 import { TOOL_SPECS, runTool } from "./tools";
 
 /**
@@ -23,9 +24,10 @@ export type GenerateContent = (params: GenerateContentParameters) => Promise<Gen
  */
 export async function runGemini(
   history: ChatTurn[],
-  deps: { generate: GenerateContent; store: QueueStore; now?: () => number; model?: string },
+  deps: { generate: GenerateContent; store: QueueStore; now?: () => number; model?: string; event?: EventInfo },
 ): Promise<AssistantResult> {
   const now = deps.now ?? Date.now;
+  const event = deps.event ?? EVENT;
   const contents: Content[] = history.map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.content }] }));
   const toolsUsed: string[] = [];
 
@@ -34,7 +36,7 @@ export async function runGemini(
       model: deps.model ?? DEFAULT_GEMINI_MODEL,
       contents,
       config: {
-        systemInstruction: SYSTEM_PROMPT,
+        systemInstruction: systemPrompt(event),
         maxOutputTokens: 1024,
         tools: [{ functionDeclarations: TOOL_SPECS.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) }],
       },
@@ -56,7 +58,7 @@ export async function runGemini(
         toolsUsed.push(name);
         let output: Record<string, unknown>;
         try {
-          output = { output: JSON.parse(await runTool(name, call.args, { store: deps.store, now: now() })) };
+          output = { output: JSON.parse(await runTool(name, call.args, { store: deps.store, now: now(), event })) };
         } catch (e) {
           output = { error: e instanceof Error ? e.message : String(e) };
         }
@@ -81,7 +83,7 @@ let workingModel: string | null = null;
  */
 export async function runGeminiWithFallback(
   history: ChatTurn[],
-  deps: { generate: GenerateContent; store: QueueStore; now?: () => number; preferred?: string },
+  deps: { generate: GenerateContent; store: QueueStore; now?: () => number; preferred?: string; event?: EventInfo },
 ): Promise<AssistantResult> {
   const chain = [...new Set([deps.preferred, workingModel, ...GEMINI_MODELS].filter((m): m is string => !!m))];
   let lastError: unknown;

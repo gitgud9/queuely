@@ -99,3 +99,17 @@ input.pin { font-size: 1.5rem; padding: 12px; border-radius: 12px; border: 1px s
 .chat-input { position: sticky; bottom: 0; padding: 12px 0 16px; background: var(--bg); flex-wrap: nowrap; }
 .chat-input input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 1rem; }
 .bubble-note { display: block; margin-top: 6px; font-size: 0.75rem; color: var(--muted); }
+
+/* Staff: event info editor */
+.form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+.form-grid input, .edit-row input, .edit-row select, textarea {
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: inherit; min-width: 0;
+}
+.edit-row { display: grid; gap: 8px; grid-template-columns: 1.2fr 2fr 2fr 1fr auto; align-items: center; }
+.edit-row.schedule { grid-template-columns: 145px 145px 2fr 1.4fr auto; }
+@media (max-width: 720px) {
+  .edit-row, .edit-row.schedule { grid-template-columns: 1fr 1fr; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+}
+.save-bar { position: sticky; bottom: 0; padding: 12px 0; background: var(--bg); }
+.banner.good { background: rgba(61,220,151,.12); border: 1px solid var(--good); color: var(--good); }

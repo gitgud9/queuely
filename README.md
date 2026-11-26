@@ -33,7 +33,7 @@ Built as a portfolio project inspired by the queue systems used at large public 
 | --- | --- |
 | `/` | Guest home: every booth with live waiting count, QR code, Join and Public screen links |
 | `/b/[booth]` | Visitor: join, see your number, place and wait, leave |
-| `/staff` | Staff Portal: PIN first, then one dashboard with a tab per booth (`/staff?booth=vr`). Old `/staff/<booth>` links redirect here |
+| `/staff` | Staff Portal: PIN first, then one dashboard with a tab per booth (`/staff?booth=vr`) and an **Event info** tab (`/staff?tab=event`) for what the assistant knows. Old `/staff/<booth>` links redirect here |
 | `/assistant` | Chat with the AI event assistant: live wait times, directions, schedule |
 | `/display/[booth]` | Big screen next to the booth: now serving, up next, QR to join |
 
@@ -112,6 +112,14 @@ On a one-station booth, "Call next" finishes the current visitor and calls the n
                                └─ no key / rate limited ──▶ quick answers (keyword rules over the same live data)
 ```
 
+### Reusable for any event
+
+Nothing about a specific event is hard-coded. The assistant's knowledge of the event (name, date, venue, time zone, places, programme and FAQ) is stored in Supabase and edited by staff in the **Staff Portal → Event info** tab. Press Save and the assistant uses it from the next question, with no redeploy. To run Queuely at a different event, staff fill in that tab, and a developer changes the booth list in [`src/lib/booths.ts`](src/lib/booths.ts). Live wait times always come from the queues themselves, not from this page.
+
+- **Stored as one JSON document** in `public.event_info` ([`src/lib/event/store.ts`](src/lib/event/store.ts)). It's small, read on every question and written only when staff press Save, so one row is simpler than separate tables for places, sessions and FAQ, the same reasoning as one document per booth.
+- **Checked before saving** ([`validate.ts`](src/lib/event/validate.ts)): required fields, 24-hour times with the end after the start, a real time zone, and size limits so the AI's instructions stay short (and cheap). Saving needs the staff PIN.
+- **Never breaks the chat.** Until staff save for the first time, or if the table hasn't been created yet, the app uses the sample event in [`defaults.ts`](src/lib/event/defaults.ts). If loading fails during a question, the assistant falls back to the sample rather than erroring.
+
 ### Which brain answers
 
 | Set in Vercel | Who answers | Cost |
@@ -124,7 +132,7 @@ Google renames and retires Gemini models often, so the app keeps a short list an
 
 ### Design choices (and why)
 
-1. **Tool calling instead of pasting the data into the prompt.** Wait times change every few seconds, so the model has to fetch them when it needs them. Tools also stop the model inventing numbers: the system prompt tells it to always call `get_live_queues` for wait questions. Static info (places, FAQ) is small and never changes, so it goes straight into the system prompt.
+1. **Tool calling instead of pasting the data into the prompt.** Wait times change every few seconds, so the model has to fetch them when it needs them. Tools also stop the model inventing numbers: the system prompt tells it to always call `get_live_queues` for wait questions. Event info (places, FAQ) is small and only changes when staff edit it, so it goes straight into the system prompt.
 2. **The tools reuse Queuely's own code.** `get_live_queues` calls the same store and the same `estimateWaitSec` function as the home page, so the assistant and the screens can never disagree. The tools are read-only: the model can look at queues but cannot join, skip or reset anything.
 3. **One set of tools, two AI providers.** The tools are defined once as JSON Schema ([`tools.ts`](src/lib/assistant/tools.ts)), which both Gemini and Claude accept. Each provider has its own small loop ([`gemini.ts`](src/lib/assistant/gemini.ts), [`claude.ts`](src/lib/assistant/claude.ts)): send the chat, and while the model asks for tools, run them and send all the results back in one turn. Both stop after 5 tool rounds so a confused model can't loop forever, and a tool error goes back to the model as an error result instead of crashing the request.
 4. **Free first, and it degrades gracefully.** Gemini goes first because its free tier needs no card. The quick answers ([`quick.ts`](src/lib/assistant/quick.ts)) are plain keyword rules over the same tools, so the chat still works with no key, when the free quota runs out, or if the AI service is down.
@@ -150,7 +158,7 @@ npm run test:e2e     # browser tests (Playwright), builds and starts the app
 The end-to-end tests open **separate browser contexts as separate phones**. Three visitors join, staff call and skip, one visitor leaves, and staff pause and resume. The tests check that every visitor's screen, the staff dashboard and the public display update live without reloading. They also cover a two-station booth, a rush of 40 simultaneous joins, the PIN and ticket-token security, and that guests see no staff links while the Staff Portal stays locked until the right PIN is entered.
 
 ### Deploying (Vercel + Supabase, both free)
-1. Create a Supabase project. In **SQL editor**, run [`supabase/schema.sql`](supabase/schema.sql).
+1. Create a Supabase project. In **SQL editor**, run [`supabase/schema.sql`](supabase/schema.sql). It's safe to run again after updates (it creates the `booths` and `event_info` tables).
 2. Import this repo in Vercel and set these environment variables:
    | Variable | Value |
    | --- | --- |
@@ -177,7 +185,8 @@ src/lib/queue.ts          pure queue rules + wait estimate
 src/lib/store/            memory and Supabase stores behind one interface
 src/lib/token.ts          ticket tokens and staff PIN check
 src/lib/client/useBooth.ts live state hook (Realtime or SSE, plus fallbacks)
-src/lib/assistant/        AI assistant: event info, tools, Gemini and Claude loops, quick answers
+src/lib/assistant/        AI assistant: tools, Gemini and Claude loops, quick answers
+src/lib/event/            event info (places, programme, FAQ): sample, validation, Supabase store
 src/app/b, staff, display, assistant   the pages
 src/app/api/              HTTP actions
 tests/unit, tests/e2e     Vitest and Playwright

@@ -24,7 +24,8 @@ export default function Home() {
           booth shows who&apos;s being served.
         </p>
         <div className="row">
-          <Link className="btn primary" href="/staff" data-testid="staff-portal">Staff Portal</Link>
+          <Link className="btn primary" href="/assistant" data-testid="assistant-link">Ask the assistant</Link>
+          <Link className="btn" href="/staff" data-testid="staff-portal">Staff Portal</Link>
           <a className="btn" href={process.env.NEXT_PUBLIC_REPO_URL || "https://github.com/gitgud9/queuely"} target="_blank" rel="noreferrer">How it&apos;s built</a>
         </div>
       </header>

@@ -12,8 +12,8 @@ export default function Home() {
   return (
     <main className="container stack" style={{ gap: 24 }}>
       <header className="stack" style={{ gap: 8 }}>
-        <span className="pill" style={{ alignSelf: "flex-start" }}>Queuely</span>
-        <h1 style={{ fontSize: "clamp(2rem, 5vw, 3rem)" }}>Skip the line, not the fun.</h1>
+        <span className="pill" style={{ alignSelf: "flex-start" }}>Queue Portal</span>
+        <h1 style={{ fontSize: "clamp(2rem, 5vw, 3rem)" }}>Basic Queue systems for 3 different portals</h1>
         <p className="muted" style={{ margin: 0, maxWidth: 640 }}>
           Scan a booth&apos;s QR code to join its queue. Your number, place in line and estimated wait update live on your
           phone, and it buzzes when it&apos;s your turn. Staff call the next visitor from a dashboard, and a big screen at the

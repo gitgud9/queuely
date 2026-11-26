@@ -8,8 +8,8 @@ export default async function Demo({ params }: { params: Promise<{ id: string }>
     <>
       <div className="row spread" style={{ padding: "12px 16px" }}>
         <div className="row">
-          <Link href="/" style={{ fontWeight: 700 }}>Queuely</Link>
-          <span className="muted small">Live demo: join on the left, call visitors from the staff dashboard{process.env.STAFF_PIN ? "" : " (PIN 1234)"}.</span>
+          <Link href="/" style={{ fontWeight: 700 }}>Staff Portal</Link>
+          <span className="muted small">Call visitors from the staff dashboard{process.env.STAFF_PIN ? "" : " (PIN 1234)"}.</span>
         </div>
         <div className="row">
           {DEFAULT_BOOTHS.map((b) => (

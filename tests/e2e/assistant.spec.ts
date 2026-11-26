@@ -5,7 +5,7 @@ test("chat page sends the conversation and shows the reply", async ({ page }) =>
   // Stand in for Claude so the test is free and deterministic.
   await page.route("**/api/chat", async (route) => {
     body = route.request().postDataJSON();
-    await route.fulfill({ json: { reply: "Gaming has the shortest wait: any moment now.", toolsUsed: ["get_live_queues"] } });
+    await route.fulfill({ json: { reply: "Gaming has the shortest wait: any moment now.", toolsUsed: ["get_live_queues"], source: "gemini" } });
   });
   await page.goto("/");
   await page.getByTestId("assistant-link").click();
@@ -19,8 +19,11 @@ test("chat page sends the conversation and shows the reply", async ({ page }) =>
   expect(body!.messages).toHaveLength(3);
 });
 
-test("chat API explains when no API key is configured", async ({ request }) => {
-  const res = await request.post("/api/chat", { data: { messages: [{ role: "user", content: "hi" }] } });
-  expect(res.status()).toBe(503);
-  expect((await res.json()).error).toMatch(/ANTHROPIC_API_KEY/);
+test("with no AI key, the chat still answers from live data", async ({ request }) => {
+  const res = await request.post("/api/chat", { data: { messages: [{ role: "user", content: "Which queue is shortest?" }] } });
+  expect(res.status()).toBe(200);
+  const data = await res.json();
+  expect(data.source).toBe("quick");
+  expect(data.reply).toMatch(/shortest wait/);
+  expect(data.note).toMatch(/no AI key/);
 });

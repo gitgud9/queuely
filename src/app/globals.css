@@ -98,3 +98,4 @@ input.pin { font-size: 1.5rem; padding: 12px; border-radius: 12px; border: 1px s
 .bubble.assistant { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .chat-input { position: sticky; bottom: 0; padding: 12px 0 16px; background: var(--bg); flex-wrap: nowrap; }
 .chat-input input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 1rem; }
+.bubble-note { display: block; margin-top: 6px; font-size: 0.75rem; color: var(--muted); }

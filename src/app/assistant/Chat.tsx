@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 interface Turn {
   role: "user" | "assistant";
   content: string;
+  note?: string; // e.g. "quick answer" when the AI was unavailable
 }
 
 const SUGGESTIONS = ["Which queue is shortest right now?", "Where is the VR booth?", "What's on at 3pm?", "Where's the nearest toilet?"];
@@ -33,11 +34,11 @@ export function Chat() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next.slice(-20) }),
+        body: JSON.stringify({ messages: next.slice(-20).map(({ role, content }) => ({ role, content })) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Something went wrong");
-      setTurns([...next, { role: "assistant", content: data.reply }]);
+      setTurns([...next, { role: "assistant", content: data.reply, note: data.note }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setTurns(turns); // drop the unanswered question so it can be resent
@@ -69,7 +70,10 @@ export function Chat() {
           </div>
         )}
         {turns.map((t, i) => (
-          <div key={i} className={`bubble ${t.role}`} data-testid={`msg-${t.role}`}>{t.content}</div>
+          <div key={i} className={`bubble ${t.role}`} data-testid={`msg-${t.role}`}>
+            {t.content}
+            {t.note && <span className="bubble-note" data-testid="msg-note">{t.note}</span>}
+          </div>
         ))}
         {busy && <div className="bubble assistant muted">Checking…</div>}
         {error && <p className="small" style={{ color: "var(--bad)", margin: 0 }} role="alert">{error}</p>}

@@ -10,12 +10,19 @@ import { EVENT, eventClock, toMinutes } from "./eventInfo";
  * the guest home page shows. The model never gets database access, only these
  * read-only answers.
  */
-export const TOOLS: Anthropic.Beta.BetaTool[] = [
+export interface ToolSpec {
+  name: string;
+  description: string;
+  /** JSON Schema for the arguments. Both Claude and Gemini accept this format. */
+  parameters: { type: "object"; properties: Record<string, unknown>; additionalProperties: false };
+}
+
+export const TOOL_SPECS: ToolSpec[] = [
   {
     name: "get_live_queues",
     description:
       "Live queue status for the festival's queued booths (VR Experience, Gaming Arena, Photo Booth): people waiting, estimated wait for someone joining now, whether the booth is paused, and where it is. Call this for any question about queues, wait times, which booth is quickest, or whether to join now. Data is live, so call it again rather than reusing an old answer.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         booth_id: {
@@ -26,16 +33,22 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
       },
       additionalProperties: false,
     },
-    strict: true,
   },
   {
     name: "get_schedule",
     description:
       "The festival programme with the current event time, and which sessions are on now and coming up next. Call this for questions about what's on, times, or 'what can I do now'.",
-    input_schema: { type: "object", properties: {}, additionalProperties: false },
-    strict: true,
+    parameters: { type: "object", properties: {}, additionalProperties: false },
   },
 ];
+
+/** The same tools in Claude's format. */
+export const TOOLS: Anthropic.Beta.BetaTool[] = TOOL_SPECS.map((t) => ({
+  name: t.name,
+  description: t.description,
+  input_schema: t.parameters,
+  strict: true,
+}));
 
 export interface BoothStatus {
   id: string;

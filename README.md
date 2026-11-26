@@ -24,7 +24,7 @@ Built as a portfolio project inspired by the queue systems used at large public 
 - **Multi-station booths.** A booth with 2 headsets serves 2 people at once, and the estimate accounts for that.
 - **Separate guest and staff areas.** Guests only ever see Join queue, the public screen and QR codes. Staff use one **Staff Portal** behind a PIN, with a tab per booth.
 - **Staff tools.** Call next, Done, No-show (and "turned up late, serve now"), pause new joins, reset.
-- **AI event assistant.** Visitors can ask "Which queue is shortest?" or "What's on at 3pm?" in a chat. Claude answers from the event info and checks the live queues through tool calls (see [AI event assistant](#ai-event-assistant)).
+- **AI event assistant.** Visitors can ask "Which queue is shortest?" or "What's on at 3pm?" in a chat. the AI (free Gemini tier) answers from the event info and checks the live queues through tool calls (see [AI event assistant](#ai-event-assistant)).
 - **Built for real phones.** The ticket survives a page reload, the phone vibrates and the tab title changes when you're called, and the page re-syncs when you unlock your phone.
 
 ## Pages
@@ -94,32 +94,44 @@ On a one-station booth, "Call next" finishes the current visitor and calls the n
 
 ## AI event assistant
 
-`/assistant` is a chat page where visitors ask questions in plain English. It is linked from the guest home page.
+`/assistant` is a chat page where visitors ask questions in plain English. It is linked from the guest home page. **It is free to run**: it uses Google Gemini's free tier, and with no key at all it still answers the common questions from live data.
 
 | Visitor asks | What happens |
 | --- | --- |
-| "Which queue is shortest right now?" | Claude calls `get_live_queues`, gets every booth's live wait, and recommends the quickest open one with its location |
+| "Which queue is shortest right now?" | The AI calls `get_live_queues`, gets every booth's live wait, and recommends the quickest open one with its location |
 | "Where's the VR booth?" | Answered straight from the event info in the system prompt, no tool needed |
-| "What's on at 3pm?" | Claude calls `get_schedule`, which also returns the current event time, so "now" and "next" are correct |
+| "What's on at 3pm?" | The AI calls `get_schedule`, which also returns the current event time, so "now" and "next" are correct |
 | "Write my homework" | Politely declined: it only talks about the festival |
 
 ```
- Browser ──POST /api/chat {messages}──▶ API route ──▶ Claude (Messages API)
-                                         ▲     │        │ "I need get_live_queues"
-                                         │     ▼        ▼
-                                         │   runTool() reads the same queue store
-                                         └── tool_result goes back ──▶ Claude writes the reply
+ Browser ──POST /api/chat──▶ API route ──▶ AI model (Gemini free tier, or Claude)
+                               │   ▲          │ "I need get_live_queues"
+                               │   │          ▼
+                               │   └── runTool() reads the same queue store ──▶ result back to the AI ──▶ reply
+                               │
+                               └─ no key / rate limited ──▶ quick answers (keyword rules over the same live data)
 ```
+
+### Which brain answers
+
+| Set in Vercel | Who answers | Cost |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Google Gemini (`gemini-flash-latest`) with tool calling | Free tier, no card needed |
+| `ANTHROPIC_API_KEY` (and no Gemini key) | Claude (`claude-opus-5-5`) with tool use | Paid, about 1 to 2 cents a question |
+| nothing | Built-in quick answers | Free, no AI |
+
+If the AI fails or hits the free tier's rate limit, that one question is answered by the quick answers instead, with a small note under the reply. The demo never shows an error.
 
 ### Design choices (and why)
 
-1. **Tool use instead of pasting the data into the prompt.** Wait times change every few seconds, so the model has to fetch them when it needs them. Tools also mean the model never invents numbers: the system prompt tells it to always call `get_live_queues` for wait questions. Static info (places, FAQ) is small and never changes, so it goes straight into the system prompt, which is also prompt-cached.
+1. **Tool calling instead of pasting the data into the prompt.** Wait times change every few seconds, so the model has to fetch them when it needs them. Tools also stop the model inventing numbers: the system prompt tells it to always call `get_live_queues` for wait questions. Static info (places, FAQ) is small and never changes, so it goes straight into the system prompt.
 2. **The tools reuse Queuely's own code.** `get_live_queues` calls the same store and the same `estimateWaitSec` function as the home page, so the assistant and the screens can never disagree. The tools are read-only: the model can look at queues but cannot join, skip or reset anything.
-3. **I wrote the tool loop myself** ([`src/lib/assistant/agent.ts`](src/lib/assistant/agent.ts), about 60 lines): send the chat, and while Claude answers with `tool_use`, run the tools and send all the results back in one message. It has a hard limit of 5 tool rounds so a confused model can't loop forever and run up a bill, and a tool error goes back to Claude as an error result instead of crashing the request.
-4. **The browser holds the chat history, the server checks it.** The server is stateless (good for Vercel), and `parseHistory` rejects anything odd before it costs money: at most 20 messages and 1000 characters each, and only `user` and `assistant` roles, so nobody can inject a fake system message.
-5. **The API key stays on the server.** Only the `/api/chat` route talks to Anthropic. Without a key, the page still loads and the API answers with a clear "not set up yet" message.
-6. **Model settings.** It uses `claude-opus-5-5` (change it with the `ASSISTANT_MODEL` variable) at **low effort**, because short chat answers don't need deep reasoning, which keeps replies fast and cheap. It also turns on server-side **fallbacks**: if the model declines a request, Anthropic retries it on a fallback model inside the same call.
-7. **Tested without calling the real API.** The unit tests pass a fake Claude that plays back scripted responses, so they check the loop itself (tool results sent back, parallel calls, errors, the round limit, refusals) for free and the same way every time. The browser test stubs `/api/chat` and checks the chat page.
+3. **One set of tools, two AI providers.** The tools are defined once as JSON Schema ([`tools.ts`](src/lib/assistant/tools.ts)), which both Gemini and Claude accept. Each provider has its own small loop ([`gemini.ts`](src/lib/assistant/gemini.ts), [`claude.ts`](src/lib/assistant/claude.ts)): send the chat, and while the model asks for tools, run them and send all the results back in one turn. Both stop after 5 tool rounds so a confused model can't loop forever, and a tool error goes back to the model as an error result instead of crashing the request.
+4. **Free first, and it degrades gracefully.** Gemini goes first because its free tier needs no card. The quick answers ([`quick.ts`](src/lib/assistant/quick.ts)) are plain keyword rules over the same tools, so the chat still works with no key, when the free quota runs out, or if the AI service is down.
+5. **Rate limiting, both ways.** Each visitor can ask 8 questions a minute ([`rateLimit.ts`](src/lib/assistant/rateLimit.ts)), which protects the free quota from one person spamming. When the AI itself answers "429 too many requests", the route falls back to the quick answer. The limiter lives in memory, so on Vercel each server instance counts separately. For a real event I'd move it to a shared store like Redis.
+6. **The browser holds the chat history, the server checks it.** The server is stateless (good for Vercel), and `parseHistory` rejects anything odd before it reaches the AI: at most 20 messages and 1000 characters each, and only `user` and `assistant` roles, so nobody can inject a fake system message.
+7. **Keys stay on the server.** Only the `/api/chat` route talks to the AI provider. The key is never sent to the browser.
+8. **Tested without calling a real AI.** The unit tests pass a fake Gemini and a fake Claude that play back scripted responses, so they check the loops (tool results sent back, parallel calls, errors, the round limit), the fallback on a 429 and the quick answers for free and the same way every time. The browser test stubs `/api/chat` and checks the chat page, and another checks that with no key the API still answers from live data.
 
 **What I'd add next:** stream the reply word by word, let the assistant join a queue for the visitor (with a confirm button, since that changes data), answer in Malay, Chinese and Tamil, and log questions it couldn't answer to improve the event info.
 
@@ -147,8 +159,9 @@ The end-to-end tests open **separate browser contexts as separate phones**. Thre
    | `SUPABASE_SERVICE_ROLE_KEY` | the secret key (`sb_secret_…`, or the legacy `service_role` key). Server only, never exposed |
    | `TICKET_SECRET` | any long random string |
    | `STAFF_PIN` | the PIN staff will use (leave unset to keep the demo PIN 1234) |
-   | `ANTHROPIC_API_KEY` | your key from console.anthropic.com → API keys. Needed for the `/assistant` chat. Server only |
-   | `ASSISTANT_MODEL` | optional, defaults to `claude-opus-5-5` |
+   | `GEMINI_API_KEY` | free key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey), for the `/assistant` chat. Optional: without it the chat uses quick answers. Server only |
+   | `GEMINI_MODEL` | optional, defaults to `gemini-flash-latest` |
+   | `ANTHROPIC_API_KEY`, `ASSISTANT_MODEL` | optional, to use Claude instead (paid). Defaults to `claude-opus-5-5` |
    | `NEXT_PUBLIC_REPO_URL` | link to the repo (optional, defaults to github.com/gitgud9/queuely) |
 3. Deploy. The booths (VR, Gaming, Photo) are created automatically on first load. Edit `src/lib/booths.ts` to change them.
 
@@ -164,7 +177,7 @@ src/lib/queue.ts          pure queue rules + wait estimate
 src/lib/store/            memory and Supabase stores behind one interface
 src/lib/token.ts          ticket tokens and staff PIN check
 src/lib/client/useBooth.ts live state hook (Realtime or SSE, plus fallbacks)
-src/lib/assistant/        AI assistant: event info, tools, tool-use loop
+src/lib/assistant/        AI assistant: event info, tools, Gemini and Claude loops, quick answers
 src/app/b, staff, display, assistant   the pages
 src/app/api/              HTTP actions
 tests/unit, tests/e2e     Vitest and Playwright

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
-import { MAX_TOOL_ROUNDS, parseHistory, runAssistant, type CreateMessage } from "@/lib/assistant/agent";
+import { runClaude, type CreateMessage } from "@/lib/assistant/claude";
+import { MAX_TOOL_ROUNDS, parseHistory } from "@/lib/assistant/common";
 import { eventClock } from "@/lib/assistant/eventInfo";
 import { getLiveQueues, getSchedule, runTool } from "@/lib/assistant/tools";
 import { applyStaffAction, join } from "@/lib/queue";
@@ -77,9 +78,9 @@ describe("runAssistant (tool-use loop)", () => {
       msg([{ type: "tool_use", id: "t1", name: "get_live_queues", input: {} }], "tool_use"),
       msg([{ type: "text", text: "Gaming has no wait right now. It's at Hall A, booths A6 to A8." }], "end_turn"),
     ]);
-    const result = await runAssistant([{ role: "user", content: "Which queue is shortest?" }], { create: claude.create, store, now: () => NOW });
+    const result = await runClaude([{ role: "user", content: "Which queue is shortest?" }], { create: claude.create, store, now: () => NOW });
 
-    expect(result).toEqual({ reply: "Gaming has no wait right now. It's at Hall A, booths A6 to A8.", toolsUsed: ["get_live_queues"] });
+    expect(result).toEqual({ reply: "Gaming has no wait right now. It's at Hall A, booths A6 to A8.", toolsUsed: ["get_live_queues"], source: "claude" });
     expect(claude.calls).toHaveLength(2);
     const first = claude.calls[0];
     expect(first.model).toBe("claude-opus-5-5");
@@ -103,7 +104,7 @@ describe("runAssistant (tool-use loop)", () => {
       ),
       msg([{ type: "text", text: "ok" }], "end_turn"),
     ]);
-    await runAssistant([{ role: "user", content: "VR now?" }], { create: claude.create, store: new MemoryStore(), now: () => NOW });
+    await runClaude([{ role: "user", content: "VR now?" }], { create: claude.create, store: new MemoryStore(), now: () => NOW });
     const last = claude.calls[1].messages.at(-1)!;
     expect(last.role).toBe("user");
     expect((last.content as { tool_use_id: string }[]).map((b) => b.tool_use_id)).toEqual(["a", "b"]);
@@ -114,7 +115,7 @@ describe("runAssistant (tool-use loop)", () => {
       msg([{ type: "tool_use", id: "x", name: "nope", input: {} }], "tool_use"),
       msg([{ type: "text", text: "Sorry, I couldn't check that." }], "end_turn"),
     ]);
-    const r = await runAssistant([{ role: "user", content: "hi" }], { create: claude.create, store: new MemoryStore(), now: () => NOW });
+    const r = await runClaude([{ role: "user", content: "hi" }], { create: claude.create, store: new MemoryStore(), now: () => NOW });
     expect(r.reply).toBe("Sorry, I couldn't check that.");
     const result = (claude.calls[1].messages.at(-1)!.content as { is_error?: boolean }[])[0];
     expect(result.is_error).toBe(true);
@@ -123,14 +124,14 @@ describe("runAssistant (tool-use loop)", () => {
   it("stops after a fixed number of tool rounds", async () => {
     const loop = () => msg([{ type: "tool_use", id: "t", name: "get_schedule", input: {} }], "tool_use");
     const claude = fakeClaude(Array.from({ length: MAX_TOOL_ROUNDS + 5 }, loop));
-    const r = await runAssistant([{ role: "user", content: "hi" }], { create: claude.create, store: new MemoryStore(), now: () => NOW });
+    const r = await runClaude([{ role: "user", content: "hi" }], { create: claude.create, store: new MemoryStore(), now: () => NOW });
     expect(claude.calls).toHaveLength(MAX_TOOL_ROUNDS + 1);
     expect(r.reply).toMatch(/took too long/);
   });
 
   it("handles a refusal politely", async () => {
     const claude = fakeClaude([msg([], "refusal")]);
-    const r = await runAssistant([{ role: "user", content: "something off-topic" }], { create: claude.create, store: new MemoryStore() });
+    const r = await runClaude([{ role: "user", content: "something off-topic" }], { create: claude.create, store: new MemoryStore() });
     expect(r.reply).toMatch(/can't help/);
   });
 });

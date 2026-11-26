@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { QueueStore } from "../store/types";
-import { eventInfoText } from "./eventInfo";
+import { MAX_TOOL_ROUNDS, SYSTEM_PROMPT, type AssistantResult, type ChatTurn } from "./common";
 import { TOOLS, runTool } from "./tools";
 
 type BetaParams = Anthropic.Beta.Messages.MessageCreateParamsNonStreaming;
@@ -10,34 +10,10 @@ type BetaMessageParam = Anthropic.Beta.Messages.BetaMessageParam;
 /** The one SDK call we use, so tests can pass a fake instead of the real client. */
 export type CreateMessage = (params: BetaParams) => Promise<BetaMessage>;
 
-export interface ChatTurn {
-  role: "user" | "assistant";
-  content: string;
-}
+export const DEFAULT_CLAUDE_MODEL = "claude-opus-5-5";
 
-export const DEFAULT_MODEL = "claude-opus-5-5";
-/** Hard stop so a confused model can't loop on tools forever (and run up a bill). */
-export const MAX_TOOL_ROUNDS = 5;
-
-export const SYSTEM_PROMPT = `You are the friendly visitor assistant for a festival that uses the Queuely virtual queue system. Visitors chat with you on their phones while walking around.
-
-How to answer:
-- Keep replies short: one to three sentences, or a short list. Plain text, no headings or tables.
-- For anything about queues or wait times, call get_live_queues first. Never guess or reuse old numbers. Quote the wait as given (for example "about 4 min").
-- For anything about times or what's on, call get_schedule. It also tells you the current event time.
-- When recommending a booth, mention its location, and that they can join from the home page or by scanning the booth's QR code.
-- Only use the event info below and your tools. If you don't know (for example a place not listed), say so and point them to the info counter at the Hall A entrance.
-- If a booth is paused, say it's not taking new joins right now.
-- Stay on festival topics. Politely decline anything else.
-
-${eventInfoText()}`;
-
-export interface AssistantResult {
-  reply: string;
-  toolsUsed: string[];
-}
-
-export async function runAssistant(
+/** Claude version of the tool-use loop (Anthropic Messages API). */
+export async function runClaude(
   history: ChatTurn[],
   deps: { create: CreateMessage; store: QueueStore; now?: () => number; model?: string },
 ): Promise<AssistantResult> {
@@ -47,7 +23,7 @@ export async function runAssistant(
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const response = await deps.create({
-      model: deps.model ?? DEFAULT_MODEL,
+      model: deps.model ?? DEFAULT_CLAUDE_MODEL,
       max_tokens: 2048,
       // Chat answers are simple; low effort keeps them fast and cheap.
       output_config: { effort: "low" },
@@ -68,7 +44,7 @@ export async function runAssistant(
         .flatMap((b) => (b.type === "text" ? [b.text] : []))
         .join("")
         .trim();
-      return { reply: reply || "Sorry, I didn't catch that. Could you ask again?", toolsUsed };
+      return { reply: reply || "Sorry, I didn't catch that. Could you ask again?", toolsUsed, source: "claude" };
     }
 
     // Keep the whole assistant turn (thinking + tool_use blocks) exactly as returned.
@@ -91,18 +67,3 @@ export async function runAssistant(
   return { reply: "Sorry, that took too long to work out. Please try asking in a simpler way.", toolsUsed };
 }
 
-/** Check what the browser sent before it reaches the model (and our bill). */
-export function parseHistory(body: unknown): ChatTurn[] | string {
-  const msgs = (body as { messages?: unknown })?.messages;
-  if (!Array.isArray(msgs) || msgs.length === 0) return "Send at least one message.";
-  if (msgs.length > 20) return "This chat is too long. Refresh the page to start a new one.";
-  const turns: ChatTurn[] = [];
-  for (const m of msgs) {
-    const { role, content } = (m ?? {}) as Record<string, unknown>;
-    if ((role !== "user" && role !== "assistant") || typeof content !== "string" || !content.trim()) return "Invalid message.";
-    if (content.length > 1000) return "Please keep messages under 1000 characters.";
-    turns.push({ role, content: content.trim() });
-  }
-  if (turns[0].role !== "user" || turns[turns.length - 1].role !== "user") return "The chat must start and end with a visitor message.";
-  return turns;
-}

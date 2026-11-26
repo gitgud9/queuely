@@ -1,6 +1,6 @@
 import type { QueueStore } from "../store/types";
 import type { AssistantResult } from "./common";
-import { EVENT, toMinutes } from "./eventInfo";
+import { EVENT, toMinutes, type EventInfo } from "./eventInfo";
 import { getLiveQueues, getSchedule } from "./tools";
 
 /**
@@ -39,7 +39,7 @@ export function parseTime(q: string): string | null {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
-export async function quickAnswer(question: string, store: QueueStore, now: number): Promise<AssistantResult> {
+export async function quickAnswer(question: string, store: QueueStore, now: number, event: EventInfo = EVENT): Promise<AssistantResult> {
   const q = question.toLowerCase();
   const booth = Object.keys(BOOTH_WORDS).find((id) => BOOTH_WORDS[id].test(q));
   const reply = (text: string, toolsUsed: string[] = []): AssistantResult => ({ reply: text, toolsUsed, source: "quick" });
@@ -47,20 +47,22 @@ export async function quickAnswer(question: string, store: QueueStore, now: numb
   // "Where is ...?"
   if (/\bwhere\b|location|find|how do i get/.test(q)) {
     const place = booth
-      ? EVENT.places.find((p) => p.boothId === booth)
-      : EVENT.places.find((p) => PLACE_WORDS.some((w) => w.place === p.name && w.re.test(q)));
+      ? event.places.find((p) => p.boothId === booth)
+      : event.places.find((p) => PLACE_WORDS.some((w) => w.place === p.name && w.re.test(q))) ??
+        // Any other place staff added: match on a word of its name ("where is the merch tent?").
+        event.places.find((p) => p.name.toLowerCase().split(/\W+/).some((word) => word.length > 3 && q.includes(word)));
     if (place) return reply(`${place.name}: ${place.where}.${place.notes ? ` ${place.notes}` : ""}`);
-    return reply("I'm not sure where that is. The info counter at the Hall A entrance can help.");
+    return reply("I'm not sure where that is. Event staff or the info counter can help.");
   }
 
   // "What's on ...?"
   const at = parseTime(q);
   if (at || /what'?s on|schedule|programme|program|happening|event|show|perform/.test(q)) {
-    const s = getSchedule(now);
+    const s = getSchedule(now, event);
     if (at) {
       const t = toMinutes(at);
-      const on = EVENT.schedule.filter((x) => toMinutes(x.start) <= t && t < toMinutes(x.end));
-      const next = EVENT.schedule.find((x) => toMinutes(x.start) > t);
+      const on = event.schedule.filter((x) => toMinutes(x.start) <= t && t < toMinutes(x.end));
+      const next = event.schedule.find((x) => toMinutes(x.start) > t);
       if (on.length) return reply(`At ${at}: ${on.map((x) => `${x.title} (${x.where}, ${x.start} to ${x.end})`).join("; ")}.`, ["get_schedule"]);
       return reply(`Nothing is scheduled at ${at}.${next ? ` Next up is ${next.title} at ${next.start} (${next.where}).` : ""}`, ["get_schedule"]);
     }
@@ -74,7 +76,7 @@ export async function quickAnswer(question: string, store: QueueStore, now: numb
 
   // Queues and waits
   if (booth || /queue|line|wait|short|quick|fast|busy|crowd|long/.test(q)) {
-    const { booths } = await getLiveQueues(store, now, booth);
+    const { booths } = await getLiveQueues(store, now, booth, event);
     if (booth) {
       const b = booths[0];
       if (!b.open) return reply(`${b.name} is paused and not taking new joins right now.`, ["get_live_queues"]);

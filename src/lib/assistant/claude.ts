@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { QueueStore } from "../store/types";
-import { MAX_TOOL_ROUNDS, SYSTEM_PROMPT, type AssistantResult, type ChatTurn } from "./common";
+import { MAX_TOOL_ROUNDS, systemPrompt, type AssistantResult, type ChatTurn } from "./common";
+import { EVENT, type EventInfo } from "./eventInfo";
 import { TOOLS, runTool } from "./tools";
 
 type BetaParams = Anthropic.Beta.Messages.MessageCreateParamsNonStreaming;
@@ -15,9 +16,10 @@ export const DEFAULT_CLAUDE_MODEL = "claude-opus-5-5";
 /** Claude version of the tool-use loop (Anthropic Messages API). */
 export async function runClaude(
   history: ChatTurn[],
-  deps: { create: CreateMessage; store: QueueStore; now?: () => number; model?: string },
+  deps: { create: CreateMessage; store: QueueStore; now?: () => number; model?: string; event?: EventInfo },
 ): Promise<AssistantResult> {
   const now = deps.now ?? Date.now;
+  const event = deps.event ?? EVENT;
   const messages: BetaMessageParam[] = history.map((t) => ({ role: t.role, content: t.content }));
   const toolsUsed: string[] = [];
 
@@ -30,7 +32,7 @@ export async function runClaude(
       // If the model declines a request, the API retries it on a fallback model.
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
-      system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: systemPrompt(event), cache_control: { type: "ephemeral" } }],
       tools: TOOLS,
       messages,
     });
@@ -55,7 +57,7 @@ export async function runClaude(
       calls.map(async (call) => {
         toolsUsed.push(call.name);
         try {
-          return { type: "tool_result" as const, tool_use_id: call.id, content: await runTool(call.name, call.input, { store: deps.store, now: now() }) };
+          return { type: "tool_result" as const, tool_use_id: call.id, content: await runTool(call.name, call.input, { store: deps.store, now: now(), event }) };
         } catch (e) {
           return { type: "tool_result" as const, tool_use_id: call.id, content: `Error: ${e instanceof Error ? e.message : String(e)}`, is_error: true };
         }

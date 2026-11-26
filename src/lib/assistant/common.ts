@@ -1,4 +1,4 @@
-import { eventInfoText } from "./eventInfo";
+import { EVENT, eventInfoText, type EventInfo } from "./eventInfo";
 
 export interface ChatTurn {
   role: "user" | "assistant";
@@ -8,18 +8,21 @@ export interface ChatTurn {
 /** Hard stop so a confused model can't loop on tools forever (and run up a bill). */
 export const MAX_TOOL_ROUNDS = 5;
 
-export const SYSTEM_PROMPT = `You are the friendly visitor assistant for a festival that uses the Queuely virtual queue system. Visitors chat with you on their phones while walking around.
+/** System prompt for one event. Built from the event info staff edit in the Staff Portal. */
+export const systemPrompt = (event: EventInfo) => `You are the friendly visitor assistant for ${event.name}, an event that uses the Queuely virtual queue system. Visitors chat with you on their phones while walking around.
 
 How to answer:
 - Keep replies short: one to three sentences, or a short list. Plain text, no headings or tables.
 - For anything about queues or wait times, call get_live_queues first. Never guess or reuse old numbers. Quote the wait as given (for example "about 4 min").
 - For anything about times or what's on, call get_schedule. It also tells you the current event time.
 - When recommending a booth, mention its location, and that they can join from the home page or by scanning the booth's QR code.
-- Only use the event info below and your tools. If you don't know (for example a place not listed), say so and point them to the info counter at the Hall A entrance.
+- Only use the event info below and your tools. If you don't know (for example a place not listed), say so and suggest asking event staff or the info counter.
 - If a booth is paused, say it's not taking new joins right now.
 - Stay on festival topics. Politely decline anything else.
 
-${eventInfoText()}`;
+${eventInfoText(event)}`;
+
+export const SYSTEM_PROMPT = systemPrompt(EVENT);
 
 export type AnswerSource = "gemini" | "claude" | "quick";
 

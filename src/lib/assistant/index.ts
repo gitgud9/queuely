@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ApiError, GoogleGenAI } from "@google/genai";
+import { loadEventOrSample } from "../event/store";
+import type { EventInfo } from "../event/types";
 import type { QueueStore } from "../store/types";
 import { runClaude } from "./claude";
 import type { AnswerSource, AssistantResult, ChatTurn } from "./common";
@@ -30,31 +32,39 @@ function isRateLimit(e: unknown) {
  */
 export async function answer(
   history: ChatTurn[],
-  deps: { store: QueueStore; env?: Record<string, string | undefined>; now?: () => number; run?: (h: ChatTurn[]) => Promise<AssistantResult> },
+  deps: {
+    store: QueueStore;
+    env?: Record<string, string | undefined>;
+    now?: () => number;
+    event?: EventInfo;
+    run?: (h: ChatTurn[]) => Promise<AssistantResult>;
+  },
 ): Promise<AssistantResult> {
   const env = deps.env ?? process.env;
   const now = deps.now ?? Date.now;
   const provider = pickProvider(env);
   const question = history[history.length - 1].content;
+  // Read fresh every question, so staff edits in the portal apply straight away.
+  const event = deps.event ?? (await loadEventOrSample());
 
-  if (provider === "quick" && !deps.run) return { ...(await quickAnswer(question, deps.store, now())), note: OFFLINE_NOTE };
+  if (provider === "quick" && !deps.run) return { ...(await quickAnswer(question, deps.store, now(), event)), note: OFFLINE_NOTE };
 
   const run =
     deps.run ??
     ((h: ChatTurn[]) => {
       if (provider === "gemini") {
         gemini ??= new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
-        return runGeminiWithFallback(h, { generate: (p) => gemini!.models.generateContent(p), store: deps.store, now, preferred: env.GEMINI_MODEL || undefined });
+        return runGeminiWithFallback(h, { generate: (p) => gemini!.models.generateContent(p), store: deps.store, now, event, preferred: env.GEMINI_MODEL || undefined });
       }
       claude ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-      return runClaude(h, { create: (p) => claude!.beta.messages.create(p), store: deps.store, now, model: env.ASSISTANT_MODEL || undefined });
+      return runClaude(h, { create: (p) => claude!.beta.messages.create(p), store: deps.store, now, event, model: env.ASSISTANT_MODEL || undefined });
     });
 
   try {
     return await run(history);
   } catch (e) {
     console.error(`AI provider failed (${provider}):`, isRateLimit(e) ? "rate limited" : e);
-    const quick = await quickAnswer(question, deps.store, now());
+    const quick = await quickAnswer(question, deps.store, now(), event);
     return { ...quick, note: isRateLimit(e) ? BUSY_NOTE : "The AI hit a problem, so this is a quick answer." };
   }
 }

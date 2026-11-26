@@ -24,7 +24,7 @@ Built as a portfolio project inspired by the queue systems used at large public 
 - **Multi-station booths.** A booth with 2 headsets serves 2 people at once, and the estimate accounts for that.
 - **Separate guest and staff areas.** Guests only ever see Join queue, the public screen and QR codes. Staff use one **Staff Portal** behind a PIN, with a tab per booth.
 - **Staff tools.** Call next, Done, No-show (and "turned up late, serve now"), pause new joins, reset.
-- **AI event assistant.** Visitors can ask "Which queue is shortest?" or "What's on at 3pm?" in a chat. the AI (free Gemini tier) answers from the event info and checks the live queues through tool calls (see [AI event assistant](#ai-event-assistant)).
+- **AI event assistant.** Visitors can ask "Which queue is shortest?" or "What's on at 3pm?" in a chat. The AI (free Gemini tier) answers from the event info and checks the live queues through tool calls (see [AI event assistant](#ai-event-assistant)).
 - **Built for real phones.** The ticket survives a page reload, the phone vibrates and the tab title changes when you're called, and the page re-syncs when you unlock your phone.
 
 ## Pages

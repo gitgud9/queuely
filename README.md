@@ -1,5 +1,7 @@
 # Queuely: event queues with live wait times
 
+[![CI](https://github.com/gitgud9/queuely/actions/workflows/ci.yml/badge.svg)](https://github.com/gitgud9/queuely/actions/workflows/ci.yml)
+
 Visitors scan a booth's QR code, join the queue on their phone, and watch their **place in line** and **estimated wait** update live. Their phone buzzes when it's their turn. Staff run the line from a dashboard (call next, mark no-shows, pause), and a big **"Now serving"** screen at the booth shows who's up. It supports several booths at once, each with its own number of stations (for example 2 VR headsets or 4 consoles).
 
 Built as a portfolio project inspired by the queue systems used at large public events with gaming and VR booths.

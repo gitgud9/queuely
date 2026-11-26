@@ -116,7 +116,7 @@ On a one-station booth, "Call next" finishes the current visitor and calls the n
 
 | Set in Vercel | Who answers | Cost |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | Google Gemini (tries `gemini-4-hydrogen`, then `gemini-3.6-flash`, then `gemini-3.5-flash-lite`) with tool calling | Free tier, no card needed |
+| `GEMINI_API_KEY` | Google Gemini (tries `gemini-3.5-flash-lite`, then `gemini-3.6-flash`, then `gemini-4-hydrogen`) with tool calling | Free tier, no card needed |
 | `ANTHROPIC_API_KEY` (and no Gemini key) | Claude (`claude-opus-5-5`) with tool use | Paid, about 1 to 2 cents a question |
 | nothing | Built-in quick answers | Free, no AI |
 

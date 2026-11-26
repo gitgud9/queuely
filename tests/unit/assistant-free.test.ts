@@ -44,7 +44,7 @@ describe("runGemini (Gemini tool-use loop)", () => {
     const r = await runGemini([{ role: "user", content: "shortest?" }], { generate: g.generate, store, now: () => NOW });
 
     expect(r).toEqual({ reply: "Photo Booth, any moment now.", toolsUsed: ["get_live_queues"], source: "gemini" });
-    expect(g.calls[0].model).toBe("gemini-4-hydrogen");
+    expect(g.calls[0].model).toBe("gemini-3.5-flash-lite");
     const contents = g.calls[1].contents as { role: string; parts: { functionResponse?: { id: string; name: string; response: { output: { booths: { id: string; waiting: number }[] } } } }[] }[];
     expect(contents.map((c) => c.role)).toEqual(["user", "model", "user"]);
     const fr = contents[2].parts[0].functionResponse!;

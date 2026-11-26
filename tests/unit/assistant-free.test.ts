@@ -157,7 +157,7 @@ describe("RateLimiter", () => {
 });
 
 describe("runGeminiWithFallback", () => {
-  it("skips models that are gone or out of free quota, then remembers the one that works", async () => {
+  it("skips models that are gone, overloaded or out of free quota, then remembers the one that works", async () => {
     const { ApiError } = await import("@google/genai");
     const { runGeminiWithFallback, resetWorkingModel, GEMINI_MODELS } = await import("@/lib/assistant/gemini");
     resetWorkingModel();
@@ -165,7 +165,7 @@ describe("runGeminiWithFallback", () => {
     const generate: GenerateContent = async (p) => {
       tried.push(p.model);
       if (p.model === "old-model") throw new ApiError({ message: "not found", status: 404 });
-      if (p.model === GEMINI_MODELS[0]) throw new ApiError({ message: "quota", status: 429 });
+      if (p.model === GEMINI_MODELS[0]) throw new ApiError({ message: "high demand", status: 503 });
       return gem({ text: `hi from ${p.model}` });
     };
     const q = [{ role: "user" as const, content: "hi" }];
@@ -184,5 +184,15 @@ describe("runGeminiWithFallback", () => {
       throw new Error("network down");
     };
     await expect(runGeminiWithFallback([{ role: "user", content: "hi" }], { generate, store: new MemoryStore() })).rejects.toThrow("network down");
+  });
+});
+
+describe("isModelUnavailable", () => {
+  it("moves on for gone, quota and overload errors only", async () => {
+    const { ApiError } = await import("@google/genai");
+    const { isModelUnavailable } = await import("@/lib/assistant/gemini");
+    for (const status of [403, 404, 429, 500, 503]) expect(isModelUnavailable(new ApiError({ message: "x", status }))).toBe(true);
+    expect(isModelUnavailable(new ApiError({ message: "bad request", status: 400 }))).toBe(false);
+    expect(isModelUnavailable(new Error("network"))).toBe(false);
   });
 });

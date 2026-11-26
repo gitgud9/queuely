@@ -120,7 +120,7 @@ On a one-station booth, "Call next" finishes the current visitor and calls the n
 | `ANTHROPIC_API_KEY` (and no Gemini key) | Claude (`claude-opus-5-5`) with tool use | Paid, about 1 to 2 cents a question |
 | nothing | Built-in quick answers | Free, no AI |
 
-Google renames and retires Gemini models often, so the app keeps a short list and moves to the next model if one is gone or out of free quota, then remembers the one that worked. If every model fails or hits the free tier's rate limit, that one question is answered by the quick answers instead, with a small note under the reply. The demo never shows an error.
+Google renames and retires Gemini models often, so the app keeps a short list and moves to the next model if one is gone, overloaded or out of free quota, then remembers the one that worked. If every model fails or hits the free tier's rate limit, that one question is answered by the quick answers instead, with a small note under the reply. The demo never shows an error.
 
 ### Design choices (and why)
 
@@ -160,7 +160,7 @@ The end-to-end tests open **separate browser contexts as separate phones**. Thre
    | `TICKET_SECRET` | any long random string |
    | `STAFF_PIN` | the PIN staff will use (leave unset to keep the demo PIN 1234) |
    | `GEMINI_API_KEY` | free key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey), for the `/assistant` chat. Optional: without it the chat uses quick answers. Server only |
-   | `GEMINI_MODEL` | optional, a Gemini model to try first. If it is retired (404) or out of free quota (429), the app moves on to the next model in its list |
+   | `GEMINI_MODEL` | optional, a Gemini model to try first. If it is retired (404), out of free quota (429) or overloaded (503), the app moves on to the next model in its list |
    | `ANTHROPIC_API_KEY`, `ASSISTANT_MODEL` | optional, to use Claude instead (paid). Defaults to `claude-opus-5-5` |
    | `NEXT_PUBLIC_REPO_URL` | link to the repo (optional, defaults to github.com/gitgud9/queuely) |
 3. Deploy. The booths (VR, Gaming, Photo) are created automatically on first load. Edit `src/lib/booths.ts` to change them.

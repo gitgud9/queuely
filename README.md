@@ -24,6 +24,7 @@ Built as a portfolio project inspired by the queue systems used at large public 
 - **Multi-station booths.** A booth with 2 headsets serves 2 people at once, and the estimate accounts for that.
 - **Separate guest and staff areas.** Guests only ever see Join queue, the public screen and QR codes. Staff use one **Staff Portal** behind a PIN, with a tab per booth.
 - **Staff tools.** Call next, Done, No-show (and "turned up late, serve now"), pause new joins, reset.
+- **AI event assistant.** Visitors can ask "Which queue is shortest?" or "What's on at 3pm?" in a chat. Claude answers from the event info and checks the live queues through tool calls (see [AI event assistant](#ai-event-assistant)).
 - **Built for real phones.** The ticket survives a page reload, the phone vibrates and the tab title changes when you're called, and the page re-syncs when you unlock your phone.
 
 ## Pages
@@ -33,6 +34,7 @@ Built as a portfolio project inspired by the queue systems used at large public 
 | `/` | Guest home: every booth with live waiting count, QR code, Join and Public screen links |
 | `/b/[booth]` | Visitor: join, see your number, place and wait, leave |
 | `/staff` | Staff Portal: PIN first, then one dashboard with a tab per booth (`/staff?booth=vr`). Old `/staff/<booth>` links redirect here |
+| `/assistant` | Chat with the AI event assistant: live wait times, directions, schedule |
 | `/display/[booth]` | Big screen next to the booth: now serving, up next, QR to join |
 
 ## Architecture
@@ -90,6 +92,37 @@ Visitors shouldn't have to sign up to join a 5-minute queue. When you join, the 
 ### 6. One button for the common case
 On a one-station booth, "Call next" finishes the current visitor and calls the next one in one tap. On multi-station booths it fills free stations first. Staff are busy, so the main action should take one press.
 
+## AI event assistant
+
+`/assistant` is a chat page where visitors ask questions in plain English. It is linked from the guest home page.
+
+| Visitor asks | What happens |
+| --- | --- |
+| "Which queue is shortest right now?" | Claude calls `get_live_queues`, gets every booth's live wait, and recommends the quickest open one with its location |
+| "Where's the VR booth?" | Answered straight from the event info in the system prompt, no tool needed |
+| "What's on at 3pm?" | Claude calls `get_schedule`, which also returns the current event time, so "now" and "next" are correct |
+| "Write my homework" | Politely declined: it only talks about the festival |
+
+```
+ Browser ──POST /api/chat {messages}──▶ API route ──▶ Claude (Messages API)
+                                         ▲     │        │ "I need get_live_queues"
+                                         │     ▼        ▼
+                                         │   runTool() reads the same queue store
+                                         └── tool_result goes back ──▶ Claude writes the reply
+```
+
+### Design choices (and why)
+
+1. **Tool use instead of pasting the data into the prompt.** Wait times change every few seconds, so the model has to fetch them when it needs them. Tools also mean the model never invents numbers: the system prompt tells it to always call `get_live_queues` for wait questions. Static info (places, FAQ) is small and never changes, so it goes straight into the system prompt, which is also prompt-cached.
+2. **The tools reuse Queuely's own code.** `get_live_queues` calls the same store and the same `estimateWaitSec` function as the home page, so the assistant and the screens can never disagree. The tools are read-only: the model can look at queues but cannot join, skip or reset anything.
+3. **I wrote the tool loop myself** ([`src/lib/assistant/agent.ts`](src/lib/assistant/agent.ts), about 60 lines): send the chat, and while Claude answers with `tool_use`, run the tools and send all the results back in one message. It has a hard limit of 5 tool rounds so a confused model can't loop forever and run up a bill, and a tool error goes back to Claude as an error result instead of crashing the request.
+4. **The browser holds the chat history, the server checks it.** The server is stateless (good for Vercel), and `parseHistory` rejects anything odd before it costs money: at most 20 messages and 1000 characters each, and only `user` and `assistant` roles, so nobody can inject a fake system message.
+5. **The API key stays on the server.** Only the `/api/chat` route talks to Anthropic. Without a key, the page still loads and the API answers with a clear "not set up yet" message.
+6. **Model settings.** It uses `claude-opus-5-5` (change it with the `ASSISTANT_MODEL` variable) at **low effort**, because short chat answers don't need deep reasoning, which keeps replies fast and cheap. It also turns on server-side **fallbacks**: if the model declines a request, Anthropic retries it on a fallback model inside the same call.
+7. **Tested without calling the real API.** The unit tests pass a fake Claude that plays back scripted responses, so they check the loop itself (tool results sent back, parallel calls, errors, the round limit, refusals) for free and the same way every time. The browser test stubs `/api/chat` and checks the chat page.
+
+**What I'd add next:** stream the reply word by word, let the assistant join a queue for the visitor (with a confirm button, since that changes data), answer in Malay, Chinese and Tamil, and log questions it couldn't answer to improve the event info.
+
 ## Running it
 
 ```bash
@@ -99,7 +132,7 @@ npm run dev          # http://localhost:3000, in-memory mode, staff PIN 1234
 
 ### Tests
 ```bash
-npm test             # unit tests: queue rules, wait estimates, tokens, store
+npm test             # unit tests: queue rules, wait estimates, tokens, store, assistant tools and loop
 npm run test:e2e     # browser tests (Playwright), builds and starts the app
 ```
 The end-to-end tests open **separate browser contexts as separate phones**. Three visitors join, staff call and skip, one visitor leaves, and staff pause and resume. The tests check that every visitor's screen, the staff dashboard and the public display update live without reloading. They also cover a two-station booth, a rush of 40 simultaneous joins, the PIN and ticket-token security, and that guests see no staff links while the Staff Portal stays locked until the right PIN is entered.
@@ -114,6 +147,8 @@ The end-to-end tests open **separate browser contexts as separate phones**. Thre
    | `SUPABASE_SERVICE_ROLE_KEY` | the secret key (`sb_secret_…`, or the legacy `service_role` key). Server only, never exposed |
    | `TICKET_SECRET` | any long random string |
    | `STAFF_PIN` | the PIN staff will use (leave unset to keep the demo PIN 1234) |
+   | `ANTHROPIC_API_KEY` | your key from console.anthropic.com → API keys. Needed for the `/assistant` chat. Server only |
+   | `ASSISTANT_MODEL` | optional, defaults to `claude-opus-5-5` |
    | `NEXT_PUBLIC_REPO_URL` | link to the repo (optional, defaults to github.com/gitgud9/queuely) |
 3. Deploy. The booths (VR, Gaming, Photo) are created automatically on first load. Edit `src/lib/booths.ts` to change them.
 
@@ -129,7 +164,8 @@ src/lib/queue.ts          pure queue rules + wait estimate
 src/lib/store/            memory and Supabase stores behind one interface
 src/lib/token.ts          ticket tokens and staff PIN check
 src/lib/client/useBooth.ts live state hook (Realtime or SSE, plus fallbacks)
-src/app/b, staff, display   the pages
+src/lib/assistant/        AI assistant: event info, tools, tool-use loop
+src/app/b, staff, display, assistant   the pages
 src/app/api/              HTTP actions
 tests/unit, tests/e2e     Vitest and Playwright
 ```

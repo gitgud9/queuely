@@ -90,3 +90,11 @@ input.pin { font-size: 1.5rem; padding: 12px; border-radius: 12px; border: 1px s
 @media (max-width: 900px) { .demo { grid-template-columns: 1fr; grid-template-rows: repeat(3, 600px); height: auto; } .demo .visitor { grid-row: auto; } }
 
 .portal-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line); background: rgba(11,16,32,.85); position: sticky; top: 0; z-index: 5; backdrop-filter: blur(8px); }
+
+/* Assistant chat */
+.chat-log { flex: 1; }
+.bubble { max-width: 85%; padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; line-height: 1.45; }
+.bubble.user { align-self: flex-end; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white; border-bottom-right-radius: 4px; }
+.bubble.assistant { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.chat-input { position: sticky; bottom: 0; padding: 12px 0 16px; background: var(--bg); flex-wrap: nowrap; }
+.chat-input input { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 1rem; }

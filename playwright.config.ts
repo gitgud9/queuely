@@ -17,6 +17,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/booths`,
     timeout: 240_000,
     reuseExistingServer: !process.env.CI,
-    env: { NEXT_PUBLIC_SUPABASE_URL: "", SUPABASE_SERVICE_ROLE_KEY: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "", STAFF_PIN: "" },
+    env: { NEXT_PUBLIC_SUPABASE_URL: "", SUPABASE_SERVICE_ROLE_KEY: "", NEXT_PUBLIC_SUPABASE_ANON_KEY: "", STAFF_PIN: "", ANTHROPIC_API_KEY: "" },
   },
 });

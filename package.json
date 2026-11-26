@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
     "@supabase/supabase-js": "^2.119.2",
     "next": "15.5.29",
     "qrcode": "^1.5.4",

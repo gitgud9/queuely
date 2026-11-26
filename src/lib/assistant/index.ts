@@ -3,7 +3,7 @@ import { ApiError, GoogleGenAI } from "@google/genai";
 import type { QueueStore } from "../store/types";
 import { runClaude } from "./claude";
 import type { AnswerSource, AssistantResult, ChatTurn } from "./common";
-import { runGemini } from "./gemini";
+import { runGeminiWithFallback } from "./gemini";
 import { quickAnswer } from "./quick";
 
 /** Which AI is set up. Gemini first because its free tier needs no card. */
@@ -44,7 +44,7 @@ export async function answer(
     ((h: ChatTurn[]) => {
       if (provider === "gemini") {
         gemini ??= new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
-        return runGemini(h, { generate: (p) => gemini!.models.generateContent(p), store: deps.store, now, model: env.GEMINI_MODEL || undefined });
+        return runGeminiWithFallback(h, { generate: (p) => gemini!.models.generateContent(p), store: deps.store, now, preferred: env.GEMINI_MODEL || undefined });
       }
       claude ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
       return runClaude(h, { create: (p) => claude!.beta.messages.create(p), store: deps.store, now, model: env.ASSISTANT_MODEL || undefined });

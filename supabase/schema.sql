@@ -12,6 +12,11 @@ alter table public.booths enable row level security;
 drop policy if exists "Queue state is public" on public.booths;
 create policy "Queue state is public" on public.booths for select using (true);
 
+-- Newer Supabase projects don't grant table access to the API roles
+-- automatically, so grant it explicitly.
+grant select on public.booths to anon, authenticated;
+grant select, insert, update, delete on public.booths to service_role;
+
 -- Push row changes to browsers over Supabase Realtime.
 do $$ begin
   alter publication supabase_realtime add table public.booths;

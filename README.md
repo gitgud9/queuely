@@ -22,9 +22,10 @@ Built as a portfolio project inspired by the queue systems used at large public 
 - **Live updates everywhere.** Visitor, staff and display screens update within a fraction of a second when anything changes.
 - **Wait estimates that learn.** The estimate starts from the booth's expected time per visitor, then adjusts to how long visitors actually take.
 - **Multi-station booths.** A booth with 2 headsets serves 2 people at once, and the estimate accounts for that.
-- **Separate guest and staff areas.** Guests only ever see Join queue, the public screen and QR codes. Staff use one **Staff Portal** behind a PIN, with a tab per booth.
+- **Separate guest and staff areas.** Guests only ever see Join queue, the public screen and QR codes. Staff use one **Staff Portal** behind a PIN, with a tab per booth and an Event info tab.
 - **Staff tools.** Call next, Done, No-show (and "turned up late, serve now"), pause new joins, reset.
 - **AI event assistant.** Visitors can ask "Which queue is shortest?" or "What's on at 3pm?" in a chat. The AI (free Gemini tier) answers from the event info and checks the live queues through tool calls (see [AI event assistant](#ai-event-assistant)).
+- **Reusable for any event.** Staff edit the event's places, programme and FAQ in the Staff Portal, and the assistant uses them from the next question. No code changes or redeploys (see [Reusable for any event](#reusable-for-any-event)).
 - **Built for real phones.** The ticket survives a page reload, the phone vibrates and the tab title changes when you're called, and the page re-syncs when you unlock your phone.
 
 ## Pages
@@ -152,10 +153,10 @@ npm run dev          # http://localhost:3000, in-memory mode, staff PIN 1234
 
 ### Tests
 ```bash
-npm test             # unit tests: queue rules, wait estimates, tokens, store, assistant tools and loop
+npm test             # unit tests: queue rules, wait estimates, tokens, store, assistant, event info
 npm run test:e2e     # browser tests (Playwright), builds and starts the app
 ```
-The end-to-end tests open **separate browser contexts as separate phones**. Three visitors join, staff call and skip, one visitor leaves, and staff pause and resume. The tests check that every visitor's screen, the staff dashboard and the public display update live without reloading. They also cover a two-station booth, a rush of 40 simultaneous joins, the PIN and ticket-token security, and that guests see no staff links while the Staff Portal stays locked until the right PIN is entered.
+The end-to-end tests open **separate browser contexts as separate phones**. Three visitors join, staff call and skip, one visitor leaves, and staff pause and resume. The tests check that every visitor's screen, the staff dashboard and the public display update live without reloading. They also cover a two-station booth, a rush of 40 simultaneous joins, the PIN and ticket-token security, and that guests see no staff links while the Staff Portal stays locked until the right PIN is entered. Two more cover the AI side: the chat page, and staff editing the event info in the portal, after which the assistant answers from the new programme straight away.
 
 ### Deploying (Vercel + Supabase, both free)
 1. Create a Supabase project. In **SQL editor**, run [`supabase/schema.sql`](supabase/schema.sql). It's safe to run again after updates (it creates the `booths` and `event_info` tables).
@@ -171,7 +172,7 @@ The end-to-end tests open **separate browser contexts as separate phones**. Thre
    | `GEMINI_MODEL` | optional, a Gemini model to try first. If it is retired (404), out of free quota (429) or overloaded (503), the app moves on to the next model in its list |
    | `ANTHROPIC_API_KEY`, `ASSISTANT_MODEL` | optional, to use Claude instead (paid). Defaults to `claude-opus-5-5` |
    | `NEXT_PUBLIC_REPO_URL` | link to the repo (optional, defaults to github.com/gitgud9/queuely) |
-3. Deploy. The booths (VR, Gaming, Photo) are created automatically on first load. Edit `src/lib/booths.ts` to change them.
+3. Deploy. The booths (VR, Gaming, Photo) are created automatically on first load, and the assistant starts on the sample event until staff save their own in **Staff Portal → Event info**. Edit `src/lib/booths.ts` to change them.
 
 ## What I'd add next
 - Text or push notification when you're 2 places away, so visitors can walk around instead of watching their phone.

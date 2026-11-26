@@ -4,11 +4,14 @@ import { MAX_TOOL_ROUNDS, SYSTEM_PROMPT, type AssistantResult, type ChatTurn } f
 import { TOOL_SPECS, runTool } from "./tools";
 
 /**
- * Free-tier models to try, best first. Google renames and retires models
- * often, so if one is gone (404) or out of free quota (429) we move on to the
- * next instead of failing. GEMINI_MODEL, if set, is tried first.
+ * Free-tier models to try, in order. Flash-Lite goes first: short chat answers
+ * don't need a bigger model, and on the live site the bigger ones were often
+ * overloaded (503), which made visitors wait while we tried each one.
+ * Google also renames and retires models often, so if one is gone (404), out
+ * of free quota (429) or overloaded (503) we move on to the next instead of
+ * failing. GEMINI_MODEL, if set, is tried first.
  */
-export const GEMINI_MODELS = ["gemini-4-hydrogen", "gemini-3.6-flash", "gemini-3.5-flash-lite"];
+export const GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-4-hydrogen"];
 export const DEFAULT_GEMINI_MODEL = GEMINI_MODELS[0];
 
 /** The one SDK call we use, so tests can pass a fake instead of the real client. */
